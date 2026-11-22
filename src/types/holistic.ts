@@ -378,3 +378,189 @@ export interface AIChatMessage {
   topicTag?: string;
   timestamp: string;
 }
+
+// ---------- 10-Year Holistic Fortune Trend (D3 Visualization) ----------
+
+export type TurningPointKind = 'decade_shift' | 'peak' | 'trough' | 'pivot';
+
+export interface TenYearTurningPoint {
+  kind: TurningPointKind;
+  label: string; // e.g., "大運換軌", "十年高峰", "築底重整", "關鍵轉折"
+  shortTag: string; // concise chart callout e.g. "換大運", "高峰", "築底", "轉折"
+  reason: string; // concrete 3-system rationale
+  priority: number; // higher = more important for callout placement
+}
+
+export interface TenYearTrendPoint {
+  year: number;
+  age: number; // nominal age (虛歲 / 實歲參考)
+  ganZhi: string; // 流年干支 from tyme4ts
+  compositeScore: number; // 0..100 holistic momentum index
+  ziweiScore: number; // 0..100
+  baziScore: number; // 0..100
+  tarotScore: number; // 0..100
+  deltaFromPrev: number | null;
+  // 3-system factual anchors
+  ziweiDecadalRange: [number, number];
+  ziweiDecadalGanZhi: string;
+  ziweiYearlyPalaceName: string;
+  ziweiYearlyMajorStars: string[];
+  ziweiYearlyMutagenSummary: string;
+  ziweiDecadalChanged: boolean;
+  baziDecadeGanZhi: string | null;
+  baziDecadeChanged: boolean;
+  baziYearTenStar: string;
+  baziYearTerrain: string;
+  baziBranchRelation: string | null; // e.g. "沖日支", "合日支", "沖年支"
+  baziAuspiciousStars: string[];
+  baziCautionStars: string[];
+  tarotYearCardName: string;
+  tarotYearCardDisplayNumber: string;
+  tarotYearCardNumber: number;
+  tarotRootCardName: string | null;
+  tarotConstellationResonance: boolean;
+  tarotShadowActivated: boolean;
+  turningPoint: TenYearTurningPoint | null;
+  highlightSummary: string;
+}
+
+export interface TenYearTrendResult {
+  startYear: number;
+  endYear: number;
+  points: TenYearTrendPoint[];
+  turningPoints: TenYearTrendPoint[];
+  averageScore: number;
+  peakPoint: TenYearTrendPoint;
+  troughPoint: TenYearTrendPoint;
+}
+
+// ---------- AI Cross-System Synthesis (Ziwei × Bazi) ----------
+
+export type CrossSystemHarmonyLevel =
+  | 'high_synergy'
+  | 'dynamic_balance'
+  | 'creative_tension';
+
+export interface CrossSystemFinding {
+  type: 'conflict' | 'complement';
+  domain: string;
+  title: string;
+  ziweiEvidence: string;
+  baziEvidence: string;
+  synthesis: string;
+  advice: string;
+}
+
+export interface CrossSystemRecommendation {
+  focus: string;
+  action: string;
+  timingNote: string;
+}
+
+export interface AICrossSystemAnalysis {
+  overallVerdict: {
+    headline: string;
+    harmonyLevel: CrossSystemHarmonyLevel;
+    harmonyLabel: string;
+    summary: string;
+  };
+  ziweiPatternAnchor: {
+    patternTitle: string;
+    coreTraits: string;
+  };
+  baziBalanceAnchor: {
+    balanceTitle: string;
+    elementProfile: string;
+  };
+  findings: CrossSystemFinding[];
+  integratedRecommendations: CrossSystemRecommendation[];
+}
+
+// ---------- Dual-Axis Emotional Flow × Fortune Trajectory (D3) ----------
+
+export type EmotionalResonanceKind =
+  | 'aligned_high'
+  | 'outer_high_inner_low'
+  | 'outer_low_inner_calm'
+  | 'both_gentle'
+  | 'steady_flow';
+
+export interface MonthlyEmotionalFlowPoint {
+  month: number; // 1..12
+  monthLabel: string; // "1月" .. "12月"
+  baziMonthGanZhi: string;
+  baziMonthTenStar: string;
+  baziMonthTerrain: string;
+  ziweiMonthPalaceName: string;
+  ziweiMentalPalaceName: string; // 流月福德宮落點
+  ziweiMonthMutagenJi: string; // 流月化忌星
+  tarotCardNumber: number;
+  tarotCardDisplayNumber: string;
+  tarotCardName: string;
+  tarotKeywords: string[];
+  isBirthdaySwitchMonth: boolean;
+  isTargetMonth: boolean;
+  fortuneScore: number; // Left Y-axis: 0..100 外在命理運程
+  emotionalScore: number; // Right Y-axis: -50..+50 內在情緒心流
+  normalizedEmotion: number; // 0..100 mapped equivalent for gap comparison
+  empathyGap: number; // fortuneScore - normalizedEmotion (positive => 外順內耗)
+  emotionToneLabel: string; // e.g., "澄明敞開", "溫潤平衡", "深潛內觀", "敏感緊繃"
+  resonanceKind: EmotionalResonanceKind;
+  resonanceLabel: string;
+  empathyNote: string;
+  selfCareTip: string;
+}
+
+export interface EmotionalFlowResult {
+  year: number;
+  targetMonth: number;
+  birthMonth: number;
+  preBirthdayCardName: string;
+  postBirthdayCardName: string;
+  points: MonthlyEmotionalFlowPoint[];
+  avgFortune: number;
+  avgEmotion: number;
+  highestEmotionMonth: MonthlyEmotionalFlowPoint;
+  mostCareNeededMonth: MonthlyEmotionalFlowPoint;
+  burnoutRiskMonths: MonthlyEmotionalFlowPoint[];
+}
+
+// ---------- Upcoming 3-Month Solar Terms & Fortune Volatility Alerts ----------
+
+export type UpcomingAlertKind =
+  | 'milestone'
+  | 'opportunity'
+  | 'caution'
+  | 'balance';
+
+export interface UpcomingAlertItem {
+  id: string;
+  date: string; // YYYY-MM-DD
+  exactTime?: string; // e.g., "15:23" from tyme4ts astronomical solar term time
+  daysFromBase: number; // 0 = today/baseDate, >0 = upcoming days
+  countdownLabel: string; // "今日交節" / "3 天後"
+  title: string; // e.g., "大雪節令・換入庚子月" / "立春換歲・進入丁未流年" / "塔羅生日換牌"
+  categoryLabel: string; // "節令換月" | "二至二分" | "換歲節點" | "塔羅轉頻"
+  kind: UpcomingAlertKind;
+  signalLabel: string; // "格局換頻" | "順勢進取" | "波動警示" | "平穩蓄能"
+  ganZhiTag: string; // e.g., "庚子月 · 正印・胎"
+  ziweiNote: string; // e.g., "流月命宮落遷移・化祿天機"
+  summary: string; // concise volatility explanation
+  actionTip: string; // concrete 1-line preparation advice
+  recommendedScope: HoroscopeScope;
+}
+
+export interface UpcomingAlertsResult {
+  baseDate: string;
+  endDate: string;
+  annualContextTitle: string;
+  annualContextNote: string;
+  items: UpcomingAlertItem[];
+  cautionCount: number;
+  opportunityCount: number;
+  milestoneCount: number;
+}
+
+
+
+

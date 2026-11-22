@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowUpRight, Check } from 'lucide-react';
+import { ArrowUpRight, Check, Loader2, Printer } from 'lucide-react';
 import {
   ActiveTab,
   BaziChartResult,
@@ -11,6 +11,8 @@ import {
 } from '../types/holistic';
 import { SCOPE_LABELS } from '../engines/holisticPayload';
 import { TarotTotemSvg } from './TarotTotemSvg';
+import { TenYearFortuneChart } from './TenYearFortuneChart';
+import { UpcomingAlertsCard } from './UpcomingAlertsCard';
 
 interface OverviewTabProps {
   client: ClientProfile;
@@ -20,7 +22,12 @@ interface OverviewTabProps {
   targetDate: string;
   activeScope: HoroscopeScope;
   onNavigateTab: (tab: ActiveTab) => void;
+  onSelectTargetYear: (year: number, scope?: HoroscopeScope) => void;
+  onSelectTargetDate: (dateStr: string, scope?: HoroscopeScope) => void;
   onSaveNotes: (notes: string) => void;
+  onExportPdf: () => Promise<void>;
+  isExportingPdf: boolean;
+  pdfFeedback: string | null;
 }
 
 const ELEMENT_COLORS: Record<FiveElement, string> = {
@@ -39,7 +46,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   targetDate,
   activeScope,
   onNavigateTab,
+  onSelectTargetYear,
+  onSelectTargetDate,
   onSaveNotes,
+  onExportPdf,
+  isExportingPdf,
+  pdfFeedback,
 }) => {
   const [draftNotes, setDraftNotes] = useState(client.notes);
   const [savedIndicator, setSavedIndicator] = useState(false);
@@ -146,14 +158,32 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 {targetDate} · {SCOPE_LABELS[activeScope]}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigateTab('ai')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] whitespace-nowrap shrink-0"
-            >
-              檢視全版 AI 深度解盤
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void onExportPdf()}
+                disabled={isExportingPdf}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[#152924] bg-[#152924] px-3 py-1.5 text-xs font-medium text-[#FAF8F3] transition-colors hover:bg-[#23433B] disabled:opacity-60 whitespace-nowrap shrink-0"
+              >
+                {isExportingPdf ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Printer className="h-3.5 w-3.5" />
+                )}
+                {isExportingPdf ? '正在生成 PDF 報告…' : '匯出 PDF 報告'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('ai')}
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] whitespace-nowrap shrink-0"
+              >
+                檢視全版 AI 深度解盤
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {pdfFeedback && (
+              <div className="text-[11px] text-[#1E6B4B]">{pdfFeedback}</div>
+            )}
           </div>
         </div>
 
@@ -240,6 +270,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
       </section>
+
+      {/* D3.js 10-Year Holistic Fortune Trend & Key Turning Points */}
+      <TenYearFortuneChart
+        client={client}
+        targetDate={targetDate}
+        onSelectTargetYear={onSelectTargetYear}
+      />
+
+      {/* Upcoming 3-Month Solar Terms & Fortune Volatility Reminder Card */}
+      <UpcomingAlertsCard
+        client={client}
+        targetDate={targetDate}
+        onSelectTargetDate={onSelectTargetDate}
+      />
 
       {/* Three-System Synthesis */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">

@@ -10,14 +10,21 @@ import {
 import {
   AIChatMessage,
   AIStage1Summary,
+  ClientProfile,
   DomainFortuneIndicator,
   HolisticChartSummaryPayload,
 } from '../types/holistic';
 import { SafeMarkdown } from './SafeMarkdown';
+import { CrossSystemAnalysisSection } from './CrossSystemAnalysisSection';
+import { EmotionalFlowChart } from './EmotionalFlowChart';
 
 interface AIReadingPanelProps {
   cacheKey: string;
+  client: ClientProfile;
+  targetDate: string;
   payload: HolisticChartSummaryPayload;
+  isActiveTab?: boolean;
+  onSummaryChange?: (summary: AIStage1Summary | null) => void;
 }
 
 const LIGHT_STYLES: Record<
@@ -73,7 +80,11 @@ function saveSessionSummaryCache(cache: Record<string, AIStage1Summary>) {
 
 export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
   cacheKey,
+  client,
+  targetDate,
   payload,
+  isActiveTab = true,
+  onSummaryChange,
 }) => {
   const [summaryCache, setSummaryCache] = useState<
     Record<string, AIStage1Summary>
@@ -96,6 +107,10 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
 
   const currentSummary = summaryCache[cacheKey] ?? null;
   const currentMessages = chatByKey[cacheKey] ?? [];
+
+  useEffect(() => {
+    onSummaryChange?.(currentSummary);
+  }, [currentSummary, onSummaryChange]);
 
   const fetchStage1Summary = async (force = false) => {
     if (!force && summaryCache[cacheKey]) {
@@ -530,6 +545,14 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
         )}
       </section>
 
+      {/* Empathetic Dual-Axis Emotional Flow × Fortune Trajectory (D3.js) */}
+      <EmotionalFlowChart
+        client={client}
+        targetDate={targetDate}
+        onAskFollowUp={(q, tag) => void sendStage2Question(q, tag)}
+        chatLoading={chatLoading}
+      />
+
       {/* Stage 2: Full-Width Consultation Dialogue Room */}
       <section
         ref={stage2SectionRef}
@@ -656,6 +679,16 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
           </div>
         </form>
       </section>
+
+      {/* Stage 3: Cross-System Synthesis Module (Ziwei Major Stars × Bazi Five Elements) */}
+      <CrossSystemAnalysisSection
+        cacheKey={cacheKey}
+        payload={payload}
+        isActiveTab={isActiveTab}
+        stage1Loading={summaryLoading}
+        onAskFollowUp={(q, tag) => void sendStage2Question(q, tag)}
+        chatLoading={chatLoading}
+      />
     </div>
   );
 };

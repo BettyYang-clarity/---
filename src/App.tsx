@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Plus, Users } from 'lucide-react';
 import {
   ActiveTab,
+  AIStage1Summary,
   ClientInput,
   ClientProfile,
   HoroscopeScope,
 } from './types/holistic';
 import { clientStorage } from './services/clientStorage';
+import { exportHolisticPdfReport } from './services/pdfReportGenerator';
 import { calculateZiweiChart } from './engines/ziweiEngine';
 import { calculateBaziChart } from './engines/baziEngine';
 import { calculateTarotChart } from './engines/tarotEngine';
@@ -50,10 +52,14 @@ export default function App() {
   const [targetDate, setTargetDate] = useState<string>(() => getTodayYMD());
   const [activeScope, setActiveScope] = useState<HoroscopeScope>('yearly');
 
-  // Modal & Responsive CRM Drawer State
+  // Modal, CRM Drawer & PDF Export State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientProfile | null>(null);
   const [crmDrawerOpen, setCrmDrawerOpen] = useState(false);
+  const [currentAISummary, setCurrentAISummary] =
+    useState<AIStage1Summary | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfFeedback, setPdfFeedback] = useState<string | null>(null);
 
   // Load initial clients from Storage Service
   useEffect(() => {
@@ -145,6 +151,14 @@ export default function App() {
     setActiveScope(nextScope);
   };
 
+  const handleSelectTargetDate = (
+    dateStr: string,
+    nextScope: HoroscopeScope = 'monthly'
+  ) => {
+    setTargetDate(dateStr);
+    setActiveScope(nextScope);
+  };
+
   const handleJumpToDecadalAge = (startAge: number) => {
     if (!activeClient) return;
     const birthYear = Number(activeClient.birthDate.split('-')[0]);
@@ -164,6 +178,58 @@ export default function App() {
   const aiCacheKey = activeClient
     ? `${activeClient.id}|${activeClient.birthDate}|${activeClient.birthTime}|${activeClient.gender}|${targetDate}`
     : '';
+
+  const handleSummaryChange = useCallback(
+    (summary: AIStage1Summary | null) => {
+      setCurrentAISummary(summary);
+    },
+    []
+  );
+
+  const handleExportPdf = async () => {
+    if (!activeClient || !charts || isExportingPdf) return;
+    setIsExportingPdf(true);
+    setPdfFeedback(null);
+
+    try {
+      let summaryForPdf = currentAISummary;
+      // If Stage 1 AI summary isn't loaded yet, try fetching it once before building the PDF
+      if (!summaryForPdf) {
+        try {
+          const res = await fetch('/api/reading/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chartSummary: charts.payload }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.summary) {
+            summaryForPdf = data.summary as AIStage1Summary;
+            setCurrentAISummary(summaryForPdf);
+          }
+        } catch {
+          // Proceed with complete chart data even if AI endpoint is unreachable
+        }
+      }
+
+      await exportHolisticPdfReport({
+        client: activeClient,
+        ziwei: charts.ziwei,
+        bazi: charts.bazi,
+        tarot: charts.tarot,
+        targetDate,
+        activeScope,
+        aiSummary: summaryForPdf,
+      });
+
+      setPdfFeedback('已成功匯出專業 PDF 報告');
+      window.setTimeout(() => setPdfFeedback(null), 3200);
+    } catch (err) {
+      console.error('PDF export error:', err);
+      setPdfFeedback('匯出 PDF 時發生異常，請稍後再試');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#F6F3EC] text-[#1A2421]">
@@ -382,7 +448,12 @@ export default function App() {
                     targetDate={targetDate}
                     activeScope={activeScope}
                     onNavigateTab={setActiveTab}
+                    onSelectTargetYear={handleSelectTargetYear}
+                    onSelectTargetDate={handleSelectTargetDate}
                     onSaveNotes={(notes) => void handleSaveNotes(notes)}
+                    onExportPdf={handleExportPdf}
+                    isExportingPdf={isExportingPdf}
+                    pdfFeedback={pdfFeedback}
                   />
                 )}
                 {activeTab === 'ziwei' && (
@@ -415,7 +486,11 @@ export default function App() {
                 <div className={activeTab === 'ai' ? 'block' : 'hidden'}>
                   <AIReadingPanel
                     cacheKey={aiCacheKey}
+                    client={activeClient}
+                    targetDate={targetDate}
                     payload={charts.payload}
+                    isActiveTab={activeTab === 'ai'}
+                    onSummaryChange={handleSummaryChange}
                   />
                 </div>
               </div>

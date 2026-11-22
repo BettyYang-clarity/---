@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
@@ -8,7 +9,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT || 3000);
-const isProd = process.env.NODE_ENV === 'production';
+const distPath = path.resolve(__dirname, 'dist');
+const hasDistBuild = fs.existsSync(path.join(distPath, 'index.html'));
+const isDev =
+  process.env.NODE_ENV === 'development' ||
+  (!hasDistBuild && process.env.NODE_ENV !== 'production');
 const MODEL_NAME = 'gemini-4-hydrogen';
 
 function getGeminiClient(): GoogleGenAI | null {
@@ -209,6 +214,139 @@ const SUMMARY_RESPONSE_SCHEMA = {
     'currentFortuneAndPsyche',
     'blindSpotsAndHiddenResources',
     'actionAndAwareness',
+  ],
+};
+
+const CROSS_SYSTEM_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    overallVerdict: {
+      type: Type.OBJECT,
+      properties: {
+        headline: {
+          type: Type.STRING,
+          description: '精煉一句總標題（12~22字），概括紫微主星格局與八字五行強弱的整體合參關係。',
+        },
+        harmonyLevel: {
+          type: Type.STRING,
+          description:
+            '固定三選一：high_synergy（高度互補協同）、dynamic_balance（剛柔動態平衡）、creative_tension（張力衝突待轉化）。',
+        },
+        harmonyLabel: {
+          type: Type.STRING,
+          description: '對應之繁體中文狀態詞（4~8字），例如：高度互補協同、剛柔動態平衡、張力衝突待轉化。',
+        },
+        summary: {
+          type: Type.STRING,
+          description:
+            '110~170 字總評，從雙體系結構出發說明紫微主星氣質與八字五行強弱（身強/身弱/喜忌偏頗）如何交互影響命主一生格局。',
+        },
+      },
+      required: ['headline', 'harmonyLevel', 'harmonyLabel', 'summary'],
+    },
+    ziweiPatternAnchor: {
+      type: Type.OBJECT,
+      properties: {
+        patternTitle: {
+          type: Type.STRING,
+          description: '紫微主星格局名稱（例如：紫府相朝、殺破狼開創格、機月同梁穩健格、命無正曜借星格等，8~16字）。',
+        },
+        coreTraits: {
+          type: Type.STRING,
+          description: '依據命宮、身宮、三方四正與本命/流年四化，概述紫微格局的核心星性與動能（55~90字）。',
+        },
+      },
+      required: ['patternTitle', 'coreTraits'],
+    },
+    baziBalanceAnchor: {
+      type: Type.OBJECT,
+      properties: {
+        balanceTitle: {
+          type: Type.STRING,
+          description: '八字日主與五行強弱定性（例如：庚金身旺火煉成器、丙火偏弱喜木火生扶等，8~16字）。',
+        },
+        elementProfile: {
+          type: Type.STRING,
+          description: '依據日主、四柱五行計數、十神配置與藏干長生，說明五行偏旺/偏弱與調候喜用方向（55~90字）。',
+        },
+      },
+      required: ['balanceTitle', 'elementProfile'],
+    },
+    findings: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          type: {
+            type: Type.STRING,
+            description: '固定為 conflict（衝突張力點）或 complement（互補增益點）。',
+          },
+          domain: {
+            type: Type.STRING,
+            description: '對應領域（2~4字，例如：決策風格、事業動能、財富守成、人際互動、身心節律）。',
+          },
+          title: {
+            type: Type.STRING,
+            description: '該衝突或互補點的鮮明標題（10~18字）。',
+          },
+          ziweiEvidence: {
+            type: Type.STRING,
+            description: '引用 JSON 中真實的紫微宮位、主星亮度或四化作為依據（18~42字）。',
+          },
+          baziEvidence: {
+            type: Type.STRING,
+            description: '引用 JSON 中真實的八字日主、五行強弱、十神、星運或神煞作為依據（18~42字）。',
+          },
+          synthesis: {
+            type: Type.STRING,
+            description: '深度解釋兩套系統為何在此處產生拉扯衝突或加乘互補，以及外顯的真實行為表現（65~115字）。',
+          },
+          advice: {
+            type: Type.STRING,
+            description: '針對此點給出具體可落地的命理建議與心態/策略調校方法（55~95字）。',
+          },
+        },
+        required: [
+          'type',
+          'domain',
+          'title',
+          'ziweiEvidence',
+          'baziEvidence',
+          'synthesis',
+          'advice',
+        ],
+      },
+      description: '共產出 4 筆高含金量合參項目，需同時包含至少 1 筆 conflict（衝突點）與至少 1 筆 complement（互補點）。',
+    },
+    integratedRecommendations: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          focus: {
+            type: Type.STRING,
+            description: '建議核心面向（6~12字，例如：五行補缺與環境調候、星性收斂與授權節奏）。',
+          },
+          action: {
+            type: Type.STRING,
+            description: '具體可執行的命理調運與行為策略（55~90字）。',
+          },
+          timingNote: {
+            type: Type.STRING,
+            description: '結合當前大限/大運與流年之時機提醒（20~40字）。',
+          },
+        },
+        required: ['focus', 'action', 'timingNote'],
+      },
+      description: '固定產出 3 項跨體系整合命理建議。',
+    },
+  },
+  required: [
+    'overallVerdict',
+    'ziweiPatternAnchor',
+    'baziBalanceAnchor',
+    'findings',
+    'integratedRecommendations',
   ],
 };
 
@@ -431,8 +569,68 @@ ${question}
   }
 });
 
+app.post('/api/reading/cross-system', async (req, res) => {
+  const chartSummary = req.body?.chartSummary;
+  if (
+    !chartSummary ||
+    typeof chartSummary !== 'object' ||
+    !chartSummary.ziwei ||
+    !chartSummary.bazi
+  ) {
+    res.status(400).json({
+      code: 'INVALID_INPUT',
+      error: '缺少完整的紫微斗數與子平八字結構化命盤資料。',
+    });
+    return;
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) {
+    res.status(503).json({
+      code: 'MISSING_API_KEY',
+      error:
+        '尚未偵測到有效的 GEMINI_API_KEY，因此無法啟動跨體系合參分析。請於執行環境的 Secrets 設定金鑰；排盤與資料庫功能不受影響。',
+    });
+    return;
+  }
+
+  try {
+    const prompt = `請針對以下命主的「紫微斗數（勸學齋規則）」與「主流子平八字」結構化排盤數據，進行專業的【跨體系合參分析】：
+核心分析任務：
+1. 先分別提煉「紫微主星格局」（命宮、身宮、三方四正主星與四化結構）與「八字五行強弱」（日主強弱、五行計數偏頗、十神結構、星運長生與神煞）。
+2. 自動偵測這兩套系統之間的【衝突張力點（conflict）】（例如：紫微殺破狼／化權外放敢衝，但八字日主偏弱、正印偏重或五行缺火木導致體力與底氣跟不上；或紫微天同太陰柔和，但八字七殺羊刃剛烈形成內外反差）與【互補增益點（complement）】（例如：紫微財官星曜得位，又得八字食傷生財或天乙貴人／祿神護持，相得益彰）。
+3. 產出 4 筆高含金量合參項目（須同時包含 conflict 與 complement），每一筆都必須嚴格引用 JSON 中真實出現的紫微星曜/四化與八字干支/五行/十神/神煞，嚴禁編造未出現的星曜或干支。
+4. 最後提出 3 項具體可落地的跨體系命理調運建議（包含實務策略與對應當前大運／流年的時機節奏）。
+
+命盤結構化 JSON：
+${JSON.stringify(chartSummary, null, 2)}`;
+
+    const response = await generateWithFallback(ai, {
+      contents: prompt,
+      systemInstruction: SYSTEM_INSTRUCTION,
+      responseMimeType: 'application/json',
+      responseSchema: CROSS_SYSTEM_RESPONSE_SCHEMA,
+    });
+
+    const text = (response.text ?? '').trim();
+    if (!text) {
+      res.status(502).json({
+        code: 'EMPTY_RESPONSE',
+        error: '跨體系合參分析回應為空，請重新嘗試。',
+      });
+      return;
+    }
+
+    const parsed = JSON.parse(text);
+    res.json({ analysis: parsed });
+  } catch (err) {
+    const info = classifyGeminiError(err);
+    res.status(info.status).json({ code: info.code, error: info.message });
+  }
+});
+
 async function startServer() {
-  if (!isProd) {
+  if (isDev) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -440,16 +638,24 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('/{*splat}', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.use((req, res, next) => {
+      if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+        res.sendFile(path.join(distPath, 'index.html'));
+        return;
+      }
+      next();
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Holistic Life Map Workbench server running on http://0.0.0.0:${PORT}`);
+    console.log(
+      `Holistic Life Map Workbench server running (${isDev ? 'dev' : 'prod'}) on http://0.0.0.0:${PORT}`
+    );
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
