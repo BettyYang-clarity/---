@@ -1,0 +1,6 @@
+{
+  "name": "全息人生地圖工作台｜東方命理 × 西方原型",
+  "description": "專業商用全息命理分析工作台，整合勸學齋紫微斗數、主流子平八字與 Mary K. Greer 生日塔羅密碼，提供命主資料庫管理與雙段式 AI 深度解盤。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

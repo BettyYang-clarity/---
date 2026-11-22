@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Noto Serif TC", Georgia, serif;
+  --font-sans: "Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-paper: #F6F3EC;
+  --color-paper-bright: #FAF8F3;
+  --color-ink-green: #152924;
+  --color-ink-green-soft: #1E3A33;
+  --color-pine: #2B5B4C;
+  --color-gold: #9A7B3E;
+  --color-vermilion: #A63A2B;
+  --color-hairline: #DDD6C7;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: #1A2421;
+    background-color: #F6F3EC;
+  }
+
+  h1, h2, h3, .font-editorial {
+    font-family: var(--font-serif);
+    text-wrap: balance;
+  }
+}
+
+/* Custom subtle scrollbars for dense three-column desktop workbench */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(21, 41, 36, 0.16);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(21, 41, 36, 0.3);
+}
+
+.dark-scroll::-webkit-scrollbar-thumb {
+  background: rgba(246, 243, 236, 0.18);
+}
+
+.dark-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(246, 243, 236, 0.32);
+}
