@@ -18,6 +18,7 @@ import { TarotTotemSvg } from './TarotTotemSvg';
 import { TenYearFortuneChart } from './TenYearFortuneChart';
 import { UpcomingAlertsCard } from './UpcomingAlertsCard';
 import { PdfExportModal } from './PdfExportModal';
+import { LifeGuidanceMap } from './LifeGuidanceMap';
 
 interface OverviewTabProps {
   client: ClientProfile;
@@ -399,6 +400,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </>
         )}
       </section>
+
+      {/* Factual Life Stage Coordinate Axis & 3-Zone Energy Allocation Map (Zero Fake Scores) */}
+      <LifeGuidanceMap
+        client={client}
+        ziwei={ziwei}
+        bazi={bazi}
+        tarot={tarot}
+        targetDate={targetDate}
+        operationMode={operationMode}
+        onSelectTargetYear={onSelectTargetYear}
+      />
 
       {/* D3.js 10-Year Holistic Fortune Trend & Key Turning Points */}
       <TenYearFortuneChart
