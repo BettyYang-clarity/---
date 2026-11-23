@@ -18,6 +18,7 @@ interface CrossSystemAnalysisSectionProps {
   stage1Loading: boolean;
   onAskFollowUp: (question: string, topicTag?: string) => void;
   chatLoading: boolean;
+  onAnalysisChange?: (analysis: AICrossSystemAnalysis | null) => void;
 }
 
 type FindingFilter = 'all' | 'conflict' | 'complement';
@@ -79,6 +80,7 @@ export const CrossSystemAnalysisSection: React.FC<
   stage1Loading,
   onAskFollowUp,
   chatLoading,
+  onAnalysisChange,
 }) => {
   const [cache, setCache] = useState<Record<string, AICrossSystemAnalysis>>(
     () => loadCrossSessionCache()
@@ -92,6 +94,10 @@ export const CrossSystemAnalysisSection: React.FC<
   payloadRef.current = payload;
 
   const currentAnalysis = cache[cacheKey] ?? null;
+
+  useEffect(() => {
+    onAnalysisChange?.(currentAnalysis);
+  }, [currentAnalysis, onAnalysisChange]);
 
   const fetchCrossAnalysis = async (force = false) => {
     if (!force && cache[cacheKey]) {

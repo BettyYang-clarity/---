@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Plus, Users } from 'lucide-react';
 import {
   ActiveTab,
+  AICrossSystemAnalysis,
   AIStage1Summary,
   ClientInput,
   ClientProfile,
   HoroscopeScope,
+  PdfExportConfig,
 } from './types/holistic';
 import { clientStorage } from './services/clientStorage';
 import { exportHolisticPdfReport } from './services/pdfReportGenerator';
@@ -58,6 +60,8 @@ export default function App() {
   const [crmDrawerOpen, setCrmDrawerOpen] = useState(false);
   const [currentAISummary, setCurrentAISummary] =
     useState<AIStage1Summary | null>(null);
+  const [currentCrossSystemAnalysis, setCurrentCrossSystemAnalysis] =
+    useState<AICrossSystemAnalysis | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfFeedback, setPdfFeedback] = useState<string | null>(null);
 
@@ -186,20 +190,40 @@ export default function App() {
     []
   );
 
-  const handleExportPdf = async () => {
+  const handleCrossSystemChange = useCallback(
+    (analysis: AICrossSystemAnalysis | null) => {
+      setCurrentCrossSystemAnalysis(analysis);
+    },
+    []
+  );
+
+  const handleExportPdf = async (config: PdfExportConfig) => {
     if (!activeClient || !charts || isExportingPdf) return;
     setIsExportingPdf(true);
     setPdfFeedback(null);
 
     try {
+      const reportScope = config.reportScope;
+      const reportPayload =
+        reportScope === activeScope
+          ? charts.payload
+          : buildHolisticPayload(
+              activeClient,
+              charts.ziwei,
+              charts.bazi,
+              charts.tarot,
+              targetDate,
+              reportScope
+            );
+
       let summaryForPdf = currentAISummary;
-      // If Stage 1 AI summary isn't loaded yet, try fetching it once before building the PDF
-      if (!summaryForPdf) {
+      // Only fetch Stage 1 AI summary if the user checked that chapter and it isn't cached yet
+      if (config.sections.aiSummary && !summaryForPdf) {
         try {
           const res = await fetch('/api/reading/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chartSummary: charts.payload }),
+            body: JSON.stringify({ chartSummary: reportPayload }),
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.summary) {
@@ -207,7 +231,26 @@ export default function App() {
             setCurrentAISummary(summaryForPdf);
           }
         } catch {
-          // Proceed with complete chart data even if AI endpoint is unreachable
+          // Proceed gracefully even if AI endpoint is unreachable
+        }
+      }
+
+      let crossSystemForPdf = currentCrossSystemAnalysis;
+      // Only fetch Cross-System synthesis if the user checked that chapter and it isn't cached yet
+      if (config.sections.crossSystem && !crossSystemForPdf) {
+        try {
+          const res = await fetch('/api/reading/cross-system', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chartSummary: reportPayload }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.analysis) {
+            crossSystemForPdf = data.analysis as AICrossSystemAnalysis;
+            setCurrentCrossSystemAnalysis(crossSystemForPdf);
+          }
+        } catch {
+          // Proceed gracefully even if AI endpoint is unreachable
         }
       }
 
@@ -217,12 +260,15 @@ export default function App() {
         bazi: charts.bazi,
         tarot: charts.tarot,
         targetDate,
-        activeScope,
+        activeScope: reportScope,
         aiSummary: summaryForPdf,
+        crossSystemAnalysis: crossSystemForPdf,
+        sections: config.sections,
       });
 
-      setPdfFeedback('已成功匯出專業 PDF 報告');
-      window.setTimeout(() => setPdfFeedback(null), 3200);
+      const selectedCount = Object.values(config.sections).filter(Boolean).length;
+      setPdfFeedback(`已成功匯出客製化 PDF 報告（含 ${selectedCount} 個章節）`);
+      window.setTimeout(() => setPdfFeedback(null), 3600);
     } catch (err) {
       console.error('PDF export error:', err);
       setPdfFeedback('匯出 PDF 時發生異常，請稍後再試');
@@ -447,6 +493,8 @@ export default function App() {
                     tarot={charts.tarot}
                     targetDate={targetDate}
                     activeScope={activeScope}
+                    aiSummary={currentAISummary}
+                    crossSystemAnalysis={currentCrossSystemAnalysis}
                     onNavigateTab={setActiveTab}
                     onSelectTargetYear={handleSelectTargetYear}
                     onSelectTargetDate={handleSelectTargetDate}
@@ -491,6 +539,7 @@ export default function App() {
                     payload={charts.payload}
                     isActiveTab={activeTab === 'ai'}
                     onSummaryChange={handleSummaryChange}
+                    onCrossSystemChange={handleCrossSystemChange}
                   />
                 </div>
               </div>

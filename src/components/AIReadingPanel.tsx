@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import {
   AIChatMessage,
+  AICrossSystemAnalysis,
   AIStage1Summary,
   ClientProfile,
   DomainFortuneIndicator,
@@ -25,6 +26,7 @@ interface AIReadingPanelProps {
   payload: HolisticChartSummaryPayload;
   isActiveTab?: boolean;
   onSummaryChange?: (summary: AIStage1Summary | null) => void;
+  onCrossSystemChange?: (analysis: AICrossSystemAnalysis | null) => void;
 }
 
 const LIGHT_STYLES: Record<
@@ -85,6 +87,7 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
   payload,
   isActiveTab = true,
   onSummaryChange,
+  onCrossSystemChange,
 }) => {
   const [summaryCache, setSummaryCache] = useState<
     Record<string, AIStage1Summary>
@@ -688,6 +691,7 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
         stage1Loading={summaryLoading}
         onAskFollowUp={(q, tag) => void sendStage2Question(q, tag)}
         chatLoading={chatLoading}
+        onAnalysisChange={onCrossSystemChange}
       />
     </div>
   );

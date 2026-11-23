@@ -561,6 +561,25 @@ export interface UpcomingAlertsResult {
   milestoneCount: number;
 }
 
+// ---------- Customizable PDF Export Structure ----------
+
+export interface PdfExportSections {
+  scopeFocus: boolean; // 當前選定運限核心摘要（本命/大限/流年/流月/流日）
+  chartRawData: boolean; // 三系統命盤原始數據（紫微・八字・塔羅）
+  tenYearTrend: boolean; // 未來十年運程趨勢與關鍵轉折點圖表
+  upcomingAlerts: boolean; // 未來三個月重要節氣／運程通知
+  aiSummary: boolean; // AI 深度解盤總結（Stage 1 四大板塊）
+  emotionalFlow: boolean; // 流年情緒流向 × 命理運程雙軸圖表
+  crossSystem: boolean; // 跨體系合參（紫微主星 × 八字五行）
+  consultantNotes: boolean; // 諮詢師備忘筆記
+}
+
+export interface PdfExportConfig {
+  reportScope: HoroscopeScope;
+  sections: PdfExportSections;
+}
+
+
 
 
 

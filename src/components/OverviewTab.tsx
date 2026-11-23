@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, Check, Loader2, Printer } from 'lucide-react';
 import {
   ActiveTab,
+  AICrossSystemAnalysis,
+  AIStage1Summary,
   BaziChartResult,
   ClientProfile,
   FiveElement,
   HoroscopeScope,
+  PdfExportConfig,
   TarotChartResult,
   ZiweiChartResult,
 } from '../types/holistic';
@@ -13,6 +16,7 @@ import { SCOPE_LABELS } from '../engines/holisticPayload';
 import { TarotTotemSvg } from './TarotTotemSvg';
 import { TenYearFortuneChart } from './TenYearFortuneChart';
 import { UpcomingAlertsCard } from './UpcomingAlertsCard';
+import { PdfExportModal } from './PdfExportModal';
 
 interface OverviewTabProps {
   client: ClientProfile;
@@ -21,11 +25,13 @@ interface OverviewTabProps {
   tarot: TarotChartResult;
   targetDate: string;
   activeScope: HoroscopeScope;
+  aiSummary: AIStage1Summary | null;
+  crossSystemAnalysis: AICrossSystemAnalysis | null;
   onNavigateTab: (tab: ActiveTab) => void;
   onSelectTargetYear: (year: number, scope?: HoroscopeScope) => void;
   onSelectTargetDate: (dateStr: string, scope?: HoroscopeScope) => void;
   onSaveNotes: (notes: string) => void;
-  onExportPdf: () => Promise<void>;
+  onExportPdf: (config: PdfExportConfig) => Promise<void>;
   isExportingPdf: boolean;
   pdfFeedback: string | null;
 }
@@ -45,6 +51,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   tarot,
   targetDate,
   activeScope,
+  aiSummary,
+  crossSystemAnalysis,
   onNavigateTab,
   onSelectTargetYear,
   onSelectTargetDate,
@@ -55,6 +63,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 }) => {
   const [draftNotes, setDraftNotes] = useState(client.notes);
   const [savedIndicator, setSavedIndicator] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   useEffect(() => {
     setDraftNotes(client.notes);
@@ -161,7 +170,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => void onExportPdf()}
+                onClick={() => setIsPdfModalOpen(true)}
                 disabled={isExportingPdf}
                 className="inline-flex items-center gap-1.5 rounded-md border border-[#152924] bg-[#152924] px-3 py-1.5 text-xs font-medium text-[#FAF8F3] transition-colors hover:bg-[#23433B] disabled:opacity-60 whitespace-nowrap shrink-0"
               >
@@ -582,6 +591,25 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           className="mt-2.5 w-full rounded-md border border-[#E5DEC9] bg-[#FAF8F3] px-3 py-2 text-sm leading-relaxed text-[#25332E] focus:border-[#2B5B4C] focus:bg-white focus:outline-none"
         />
       </section>
+
+      {/* PDF Report Structure Preview & Chapter Customization Modal */}
+      <PdfExportModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        client={client}
+        ziwei={ziwei}
+        bazi={bazi}
+        tarot={tarot}
+        targetDate={targetDate}
+        activeScope={activeScope}
+        aiSummary={aiSummary}
+        crossSystemAnalysis={crossSystemAnalysis}
+        isExporting={isExportingPdf}
+        onConfirmExport={async (config) => {
+          await onExportPdf(config);
+          setIsPdfModalOpen(false);
+        }}
+      />
     </div>
   );
 };
