@@ -6,6 +6,7 @@ import {
   BaziChartResult,
   ClientProfile,
   HoroscopeScope,
+  OperationMode,
   PdfExportConfig,
   PdfExportSections,
   TarotChartResult,
@@ -26,6 +27,7 @@ interface PdfExportModalProps {
   tarot: TarotChartResult;
   targetDate: string;
   activeScope: HoroscopeScope;
+  operationMode?: OperationMode;
   aiSummary: AIStage1Summary | null;
   crossSystemAnalysis: AICrossSystemAnalysis | null;
   isExporting: boolean;
@@ -57,26 +59,50 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   tarot,
   targetDate,
   activeScope,
+  operationMode = 'consultant',
   aiSummary,
   crossSystemAnalysis,
   isExporting,
   onConfirmExport,
 }) => {
+  const isClientMode = operationMode === 'client';
   const [reportScope, setReportScope] = useState<HoroscopeScope>(activeScope);
-  const [sections, setSections] = useState<PdfExportSections>(() => ({
-    ...DEFAULT_PDF_SECTIONS,
-    consultantNotes: Boolean(client.notes.trim()),
-  }));
+  const [sections, setSections] = useState<PdfExportSections>(() =>
+    isClientMode
+      ? {
+          scopeFocus: true,
+          chartRawData: false,
+          tenYearTrend: true,
+          upcomingAlerts: true,
+          aiSummary: true,
+          emotionalFlow: true,
+          crossSystem: false,
+          consultantNotes: false,
+        }
+      : {
+          ...DEFAULT_PDF_SECTIONS,
+          consultantNotes: Boolean(client.notes.trim()),
+        }
+  );
 
   useEffect(() => {
     if (isOpen) {
       setReportScope(activeScope);
-      setSections((prev) => ({
-        ...prev,
-        consultantNotes: Boolean(client.notes.trim()),
-      }));
+      setSections((prev) =>
+        isClientMode
+          ? {
+              ...prev,
+              chartRawData: false,
+              crossSystem: false,
+              consultantNotes: false,
+            }
+          : {
+              ...prev,
+              consultantNotes: Boolean(client.notes.trim()),
+            }
+      );
     }
-  }, [isOpen, activeScope, client.notes]);
+  }, [isOpen, activeScope, client.notes, isClientMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,12 +123,16 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   const hasNotes = Boolean(client.notes.trim());
 
-  const chapterDefs: ChapterMeta[] = useMemo(
-    () => [
+  const chapterDefs: ChapterMeta[] = useMemo(() => {
+    const all: ChapterMeta[] = [
       {
         key: 'scopeFocus',
-        title: `選定運限核心摘要（${SCOPE_LABELS[reportScope]}）`,
-        description: '依上方所選運限聚焦該層級四化飛星與紫微／八字／塔羅三盤重點。',
+        title: isClientMode
+          ? `當期運勢重點摘要（${SCOPE_LABELS[reportScope]}）`
+          : `選定運限核心摘要（${SCOPE_LABELS[reportScope]}）`,
+        description: isClientMode
+          ? '整理你目前所選時期的核心運勢方向與個人能量焦點。'
+          : '依上方所選運限聚焦該層級四化飛星與紫微／八字／塔羅三盤重點。',
         estPages: 0.4,
       },
       {
@@ -114,26 +144,28 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
       {
         key: 'tenYearTrend',
         title: '未來十年運程趨勢與關鍵轉折點圖表',
-        description: '內嵌高解析十年波動折線圖，標示換大運、高峰、築底與關鍵轉折摘要。',
+        description: '內嵌高解析十年波動折線圖，標示高峰、築底與人生關鍵轉折年。',
         estPages: 0.9,
       },
       {
         key: 'upcomingAlerts',
         title: '未來三個月重要節氣／運程通知',
-        description: '依天文二十四節氣交節、月令沖合與生日塔羅換牌列出近 90 天波動期。',
+        description: '依二十四節氣交節與重要轉頻節點列出近 90 天運勢波動提醒。',
         estPages: 0.8,
       },
       {
         key: 'aiSummary',
-        title: 'AI 深度解盤總結（四大結構化大綱）',
-        description: '人生地圖總評、流年事業／財運／感情／健康燈號、盲區資源與造命行動。',
+        title: isClientMode
+          ? 'AI 運勢重點與行動策略'
+          : 'AI 深度解盤總結（四大結構化大綱）',
+        description: '人生總評、事業／財運／感情／健康四維狀態燈號、盲區轉化與具體行動建議。',
         estPages: 1.4,
         statusNote: aiSummary ? '已就緒' : '匯出時自動載入',
       },
       {
         key: 'emotionalFlow',
-        title: '流年情緒流向 × 命理運程雙軸圖表',
-        description: '內嵌 12 個月雙軸心運曲線、生日換牌月標記、外順內耗提醒與護心建議。',
+        title: '流年情緒流向 × 運程節律雙軸圖表',
+        description: '內嵌 12 個月雙軸心運曲線、外順內耗提醒與狀態調整建議。',
         estPages: 0.9,
       },
       {
@@ -152,9 +184,17 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         estPages: hasNotes ? 0.3 : 0,
         statusNote: hasNotes ? undefined : '目前空白',
       },
-    ],
-    [reportScope, aiSummary, crossSystemAnalysis, hasNotes]
-  );
+    ];
+    if (isClientMode) {
+      return all.filter(
+        (c) =>
+          c.key !== 'chartRawData' &&
+          c.key !== 'crossSystem' &&
+          c.key !== 'consultantNotes'
+      );
+    }
+    return all;
+  }, [reportScope, aiSummary, crossSystemAnalysis, hasNotes, isClientMode]);
 
   const selectedChapters = useMemo(
     () =>
@@ -176,6 +216,44 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   };
 
   const applyPreset = (preset: 'full' | 'concise' | 'empathy') => {
+    if (isClientMode) {
+      if (preset === 'full') {
+        setSections({
+          scopeFocus: true,
+          chartRawData: false,
+          tenYearTrend: true,
+          upcomingAlerts: true,
+          aiSummary: true,
+          emotionalFlow: true,
+          crossSystem: false,
+          consultantNotes: false,
+        });
+      } else if (preset === 'concise') {
+        setSections({
+          scopeFocus: true,
+          chartRawData: false,
+          tenYearTrend: true,
+          upcomingAlerts: true,
+          aiSummary: true,
+          emotionalFlow: false,
+          crossSystem: false,
+          consultantNotes: false,
+        });
+      } else {
+        setSections({
+          scopeFocus: true,
+          chartRawData: false,
+          tenYearTrend: false,
+          upcomingAlerts: true,
+          aiSummary: true,
+          emotionalFlow: true,
+          crossSystem: false,
+          consultantNotes: false,
+        });
+      }
+      return;
+    }
+
     if (preset === 'full') {
       setSections({
         scopeFocus: true,
@@ -218,7 +296,15 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   const handleConfirm = async () => {
     if (selectedChapters.length === 0 || isExporting) return;
-    await onConfirmExport({ reportScope, sections });
+    const sanitizedSections: PdfExportSections = isClientMode
+      ? {
+          ...sections,
+          chartRawData: false,
+          crossSystem: false,
+          consultantNotes: false,
+        }
+      : sections;
+    await onConfirmExport({ reportScope, sections: sanitizedSections });
   };
 
   return (
@@ -305,25 +391,33 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                 <span className="font-serif text-sm font-bold text-[#152924]">
                   {digest.headline}
                 </span>
-                <span className="text-[11.5px] font-medium text-[#8C6830]">
-                  {digest.mutagenLabel}：{digest.mutagenLine}
-                </span>
+                {!isClientMode && (
+                  <span className="text-[11.5px] font-medium text-[#8C6830]">
+                    {digest.mutagenLabel}：{digest.mutagenLine}
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 gap-2 text-xs leading-relaxed text-[#354540] md:grid-cols-3">
-                <div className="border-t border-[#EFEAE0] pt-2">
-                  <span className="font-semibold text-[#152924]">紫微焦點：</span>
-                  {digest.ziweiPoint}
+              {isClientMode ? (
+                <div className="border-t border-[#EFEAE0] pt-2.5 text-xs leading-relaxed text-[#354540]">
+                  本份報告已切換為「客戶自助版」，僅收錄白話運勢重點、十年趨勢曲線、近期節氣波動提醒與 AI 策略建議（已隱藏命盤原始數據與內部備註）。
                 </div>
-                <div className="border-t border-[#EFEAE0] pt-2">
-                  <span className="font-semibold text-[#2B5B4C]">八字焦點：</span>
-                  {digest.baziPoint}
+              ) : (
+                <div className="grid grid-cols-1 gap-2 text-xs leading-relaxed text-[#354540] md:grid-cols-3">
+                  <div className="border-t border-[#EFEAE0] pt-2">
+                    <span className="font-semibold text-[#152924]">紫微焦點：</span>
+                    {digest.ziweiPoint}
+                  </div>
+                  <div className="border-t border-[#EFEAE0] pt-2">
+                    <span className="font-semibold text-[#2B5B4C]">八字焦點：</span>
+                    {digest.baziPoint}
+                  </div>
+                  <div className="border-t border-[#EFEAE0] pt-2">
+                    <span className="font-semibold text-[#8C6830]">塔羅焦點：</span>
+                    {digest.tarotPoint}
+                  </div>
                 </div>
-                <div className="border-t border-[#EFEAE0] pt-2">
-                  <span className="font-semibold text-[#8C6830]">塔羅焦點：</span>
-                  {digest.tarotPoint}
-                </div>
-              </div>
+              )}
 
               {aiSummary && (
                 <div className="border-t border-[#EFEAE0] pt-2.5 text-xs leading-relaxed text-[#43524D]">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, Plus, Users } from 'lucide-react';
+import { Calendar, Plus, Settings, UserPen, Users } from 'lucide-react';
 import {
   ActiveTab,
   AICrossSystemAnalysis,
@@ -7,6 +7,7 @@ import {
   ClientInput,
   ClientProfile,
   HoroscopeScope,
+  OperationMode,
   PdfExportConfig,
 } from './types/holistic';
 import { clientStorage } from './services/clientStorage';
@@ -17,6 +18,7 @@ import { calculateTarotChart } from './engines/tarotEngine';
 import { buildHolisticPayload } from './engines/holisticPayload';
 import { ClientSidebar } from './components/ClientSidebar';
 import { ClientModal } from './components/ClientModal';
+import { SettingsModal } from './components/SettingsModal';
 import { OverviewTab } from './components/OverviewTab';
 import { ZiweiTab } from './components/ZiweiTab';
 import { BaziTab } from './components/BaziTab';
@@ -31,12 +33,17 @@ function getTodayYMD(): string {
   return `${y}-${m}-${d}`;
 }
 
-const VIEW_TABS: Array<{ id: ActiveTab; label: string }> = [
+const CONSULTANT_VIEW_TABS: Array<{ id: ActiveTab; label: string }> = [
   { id: 'overview', label: '全息地圖總覽' },
   { id: 'ziwei', label: '紫微斗數' },
   { id: 'bazi', label: '八字命盤' },
   { id: 'tarot', label: '塔羅人生密碼' },
   { id: 'ai', label: 'AI 深度解盤' },
+];
+
+const CLIENT_VIEW_TABS: Array<{ id: ActiveTab; label: string }> = [
+  { id: 'overview', label: '運勢指引總覽' },
+  { id: 'ai', label: 'AI 解盤建議' },
 ];
 
 const HOROSCOPE_SCOPES: Array<{ id: HoroscopeScope; label: string }> = [
@@ -47,15 +54,31 @@ const HOROSCOPE_SCOPES: Array<{ id: HoroscopeScope; label: string }> = [
   { id: 'daily', label: '流日' },
 ];
 
+const OPERATION_MODE_STORAGE_KEY = 'holistic_operation_mode_v1';
+
+function loadSavedOperationMode(): OperationMode {
+  if (typeof window === 'undefined') return 'consultant';
+  try {
+    const raw = window.localStorage.getItem(OPERATION_MODE_STORAGE_KEY);
+    return raw === 'client' ? 'client' : 'consultant';
+  } catch {
+    return 'consultant';
+  }
+}
+
 export default function App() {
   const [clients, setClients] = useState<ClientProfile[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [targetDate, setTargetDate] = useState<string>(() => getTodayYMD());
   const [activeScope, setActiveScope] = useState<HoroscopeScope>('yearly');
+  const [operationMode, setOperationMode] = useState<OperationMode>(() =>
+    loadSavedOperationMode()
+  );
 
-  // Modal, CRM Drawer & PDF Export State
+  // Modal, Settings, CRM Drawer & PDF Export State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientProfile | null>(null);
   const [crmDrawerOpen, setCrmDrawerOpen] = useState(false);
   const [currentAISummary, setCurrentAISummary] =
@@ -64,6 +87,23 @@ export default function App() {
     useState<AICrossSystemAnalysis | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfFeedback, setPdfFeedback] = useState<string | null>(null);
+
+  const isClientMode = operationMode === 'client';
+  const visibleTabs = isClientMode ? CLIENT_VIEW_TABS : CONSULTANT_VIEW_TABS;
+
+  const handleChangeOperationMode = useCallback((nextMode: OperationMode) => {
+    setOperationMode(nextMode);
+    try {
+      window.localStorage.setItem(OPERATION_MODE_STORAGE_KEY, nextMode);
+    } catch {
+      // Ignore storage errors
+    }
+    if (nextMode === 'client') {
+      setCrmDrawerOpen(false);
+      setActiveTab((prev) => (prev === 'ai' ? 'ai' : 'overview'));
+      setActiveScope('yearly');
+    }
+  }, []);
 
   // Load initial clients from Storage Service
   useEffect(() => {
@@ -180,7 +220,7 @@ export default function App() {
   };
 
   const aiCacheKey = activeClient
-    ? `${activeClient.id}|${activeClient.birthDate}|${activeClient.birthTime}|${activeClient.gender}|${targetDate}`
+    ? `${operationMode}|${activeClient.id}|${activeClient.birthDate}|${activeClient.birthTime}|${activeClient.gender}|${targetDate}`
     : '';
 
   const handleSummaryChange = useCallback(
@@ -223,7 +263,10 @@ export default function App() {
           const res = await fetch('/api/reading/summary', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chartSummary: reportPayload }),
+            body: JSON.stringify({
+              chartSummary: reportPayload,
+              operationMode,
+            }),
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.summary) {
@@ -281,27 +324,29 @@ export default function App() {
     <div className="flex h-screen flex-col overflow-hidden bg-[#F6F3EC] text-[#1A2421]">
       {/* Top Bar — Clean 3-Zone Contract */}
       <header className="z-30 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[#DDD6C7] bg-[#FAF8F3] px-4 lg:gap-8 lg:px-6">
-        {/* Zone 1: Single-line Brand Title (+ mobile CRM trigger) */}
+        {/* Zone 1: Single-line Brand Title (+ mobile CRM trigger in consultant mode) */}
         <div className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setCrmDrawerOpen(true)}
-            aria-label="開啟命主資料庫"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#D4CCB9] bg-white text-[#152924] lg:hidden"
-          >
-            <Users className="h-4 w-4" />
-          </button>
+          {!isClientMode && (
+            <button
+              type="button"
+              onClick={() => setCrmDrawerOpen(true)}
+              aria-label="開啟命主資料庫"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#D4CCB9] bg-white text-[#152924] lg:hidden"
+            >
+              <Users className="h-4 w-4" />
+            </button>
+          )}
           <span className="font-serif text-base font-bold tracking-wide text-[#152924] whitespace-nowrap shrink-0 sm:text-[17px]">
-            全息人生地圖工作台
+            {isClientMode ? '全息人生運勢指引' : '全息人生地圖工作台'}
           </span>
         </div>
 
-        {/* Zone 2: 5 Clean Single-Line View Tabs (Desktop) */}
+        {/* Zone 2: Clean Single-Line View Tabs (Desktop) */}
         <nav
           aria-label="命盤與解盤視圖切換"
           className="hidden items-center gap-6 md:flex"
         >
-          {VIEW_TABS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
@@ -320,19 +365,45 @@ export default function App() {
           })}
         </nav>
 
-        {/* Zone 3: 1 Primary Action */}
-        <div className="flex items-center shrink-0">
+        {/* Zone 3: Settings + Primary Action */}
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => {
-              setEditingClient(null);
-              setIsModalOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-md bg-[#152924] px-3.5 py-2 text-xs font-medium text-[#FAF8F3] transition-colors hover:bg-[#23433B] whitespace-nowrap shrink-0"
+            onClick={() => setIsSettingsOpen(true)}
+            title="操作模式與工作台設定"
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#D4CCB9] bg-white px-2.5 py-2 text-xs font-medium text-[#2A3934] transition-colors hover:bg-[#EFEAE0] whitespace-nowrap shrink-0"
           >
-            <Plus className="h-3.5 w-3.5" />
-            新增命主
+            <Settings className="h-3.5 w-3.5 text-[#8C6830]" />
+            <span className="hidden sm:inline">
+              {isClientMode ? '設定・自助模式' : '設定'}
+            </span>
           </button>
+
+          {isClientMode ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingClient(activeClient);
+                setIsModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#152924] px-3.5 py-2 text-xs font-medium text-[#FAF8F3] transition-colors hover:bg-[#23433B] whitespace-nowrap shrink-0"
+            >
+              <UserPen className="h-3.5 w-3.5" />
+              輸入生辰資料
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingClient(null);
+                setIsModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#152924] px-3.5 py-2 text-xs font-medium text-[#FAF8F3] transition-colors hover:bg-[#23433B] whitespace-nowrap shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              新增命主
+            </button>
+          )}
         </div>
       </header>
 
@@ -341,7 +412,7 @@ export default function App() {
         aria-label="行動版視圖切換"
         className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#DDD6C7] bg-white px-2 md:hidden"
       >
-        {VIEW_TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
@@ -360,28 +431,30 @@ export default function App() {
         })}
       </nav>
 
-      {/* Workspace Body: Left CRM Sidebar + Full-Width Main Viewport */}
+      {/* Workspace Body: Left CRM Sidebar (Consultant Mode Only) + Full-Width Main Viewport */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {/* Left Sidebar — Desktop */}
-        <div className="hidden w-[268px] shrink-0 lg:block">
-          <ClientSidebar
-            clients={clients}
-            selectedClientId={activeClient?.id ?? null}
-            onSelectClient={(c) => setSelectedClientId(c.id)}
-            onAddClient={() => {
-              setEditingClient(null);
-              setIsModalOpen(true);
-            }}
-            onEditClient={(c) => {
-              setEditingClient(c);
-              setIsModalOpen(true);
-            }}
-            onDeleteClient={(c) => void handleDeleteClient(c)}
-          />
-        </div>
+        {!isClientMode && (
+          <div className="hidden w-[268px] shrink-0 lg:block">
+            <ClientSidebar
+              clients={clients}
+              selectedClientId={activeClient?.id ?? null}
+              onSelectClient={(c) => setSelectedClientId(c.id)}
+              onAddClient={() => {
+                setEditingClient(null);
+                setIsModalOpen(true);
+              }}
+              onEditClient={(c) => {
+                setEditingClient(c);
+                setIsModalOpen(true);
+              }}
+              onDeleteClient={(c) => void handleDeleteClient(c)}
+            />
+          </div>
+        )}
 
         {/* Left Sidebar — Mobile/Tablet Slide-Over Drawer */}
-        {crmDrawerOpen && (
+        {!isClientMode && crmDrawerOpen && (
           <div className="fixed inset-0 z-40 flex lg:hidden">
             <div
               className="fixed inset-0 bg-[#152924]/50 backdrop-blur-[1px]"
@@ -435,30 +508,32 @@ export default function App() {
               </button>
             </div>
 
-            {/* Scope Segmented Control */}
-            <div
-              role="group"
-              aria-label="運限層級切換"
-              className="flex items-center gap-0.5 rounded-md border border-[#DDD6C7] bg-[#EFEBE2] p-0.5"
-            >
-              {HOROSCOPE_SCOPES.map((scope) => {
-                const isActive = activeScope === scope.id;
-                return (
-                  <button
-                    key={scope.id}
-                    type="button"
-                    onClick={() => setActiveScope(scope.id)}
-                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
-                      isActive
-                        ? 'bg-[#152924] text-[#FAF8F3]'
-                        : 'text-[#4C5A55] hover:text-[#152924]'
-                    }`}
-                  >
-                    {scope.label}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Scope Segmented Control (Professional Consultant Mode Only) */}
+            {!isClientMode && (
+              <div
+                role="group"
+                aria-label="運限層級切換"
+                className="flex items-center gap-0.5 rounded-md border border-[#DDD6C7] bg-[#EFEBE2] p-0.5"
+              >
+                {HOROSCOPE_SCOPES.map((scope) => {
+                  const isActive = activeScope === scope.id;
+                  return (
+                    <button
+                      key={scope.id}
+                      type="button"
+                      onClick={() => setActiveScope(scope.id)}
+                      className={`rounded px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                        isActive
+                          ? 'bg-[#152924] text-[#FAF8F3]'
+                          : 'text-[#4C5A55] hover:text-[#152924]'
+                      }`}
+                    >
+                      {scope.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Scrollable Active Full-Page Canvas */}
@@ -493,6 +568,7 @@ export default function App() {
                     tarot={charts.tarot}
                     targetDate={targetDate}
                     activeScope={activeScope}
+                    operationMode={operationMode}
                     aiSummary={currentAISummary}
                     crossSystemAnalysis={currentCrossSystemAnalysis}
                     onNavigateTab={setActiveTab}
@@ -504,7 +580,7 @@ export default function App() {
                     pdfFeedback={pdfFeedback}
                   />
                 )}
-                {activeTab === 'ziwei' && (
+                {!isClientMode && activeTab === 'ziwei' && (
                   <ZiweiTab
                     client={activeClient}
                     ziwei={charts.ziwei}
@@ -512,7 +588,7 @@ export default function App() {
                     onJumpToDecadalAge={handleJumpToDecadalAge}
                   />
                 )}
-                {activeTab === 'bazi' && (
+                {!isClientMode && activeTab === 'bazi' && (
                   <BaziTab
                     client={activeClient}
                     bazi={charts.bazi}
@@ -522,7 +598,7 @@ export default function App() {
                     onSelectTargetYear={handleSelectTargetYear}
                   />
                 )}
-                {activeTab === 'tarot' && (
+                {!isClientMode && activeTab === 'tarot' && (
                   <TarotTab
                     client={activeClient}
                     tarot={charts.tarot}
@@ -537,6 +613,7 @@ export default function App() {
                     client={activeClient}
                     targetDate={targetDate}
                     payload={charts.payload}
+                    operationMode={operationMode}
                     isActiveTab={activeTab === 'ai'}
                     onSummaryChange={handleSummaryChange}
                     onCrossSystemChange={handleCrossSystemChange}
@@ -552,11 +629,20 @@ export default function App() {
       <ClientModal
         isOpen={isModalOpen}
         editingClient={editingClient}
+        operationMode={operationMode}
         onClose={() => {
           setIsModalOpen(false);
           setEditingClient(null);
         }}
         onSubmit={(data) => void handleCreateOrUpdateClient(data)}
+      />
+
+      {/* Settings & Operation Mode Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        operationMode={operationMode}
+        onChangeMode={handleChangeOperationMode}
+        onClose={() => setIsSettingsOpen(false)}
       />
     </div>
   );

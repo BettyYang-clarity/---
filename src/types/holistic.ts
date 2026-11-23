@@ -4,6 +4,8 @@ export type HoroscopeScope = 'origin' | 'decadal' | 'yearly' | 'monthly' | 'dail
 
 export type ActiveTab = 'overview' | 'ziwei' | 'bazi' | 'tarot' | 'ai';
 
+export type OperationMode = 'consultant' | 'client';
+
 export interface ClientProfile {
   id: string;
   name: string;

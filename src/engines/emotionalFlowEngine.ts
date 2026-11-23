@@ -187,7 +187,7 @@ function classifyResonance(
     return { kind: 'aligned_high', label: '心運同頻・順勢綻放' };
   }
   if (fortuneScore <= 52 && emotionalScore <= -10) {
-    return { kind: 'both_gentle', label: '低谷共渡・溫柔護心' };
+    return { kind: 'both_gentle', label: '低谷收斂・減載止損' };
   }
   return { kind: 'steady_flow', label: '心運平穩・循序前行' };
 }
@@ -242,7 +242,7 @@ function buildEmpathyCopy(params: {
       return {
         empathyNote: `${switchPrefix}${month}月內外節奏同步進入收斂期，月令「${tenStar}」與塔羅「${tarotName}」提醒你情緒承載量較敏感，不宜同時扛下過多人情與責任。`,
         selfCareTip:
-          '本月最高優先級不是加速突破，而是減少無效社交、規律睡眠與說「不」的溫柔界線。',
+          '本月最高優先級不是加速突破，而是減少無效社交、固定作息，對額外人情與任務明確設下界線、果斷說「不」。',
       };
     case 'steady_flow':
     default:

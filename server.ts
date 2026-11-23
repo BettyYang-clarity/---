@@ -356,6 +356,13 @@ const SYSTEM_INSTRUCTION = `你是一位精通東方傳統命理（勸學齋紫�
 2. 全程使用優雅、精準、具備高階商業與心理諮詢質感的繁體中文（台灣慣用語彙 zh-TW），不宿命恐嚇、不空泛敷衍，每一項論斷都自然引用命盤中真實存在的星曜、四化、十神、五行或塔羅牌名。
 3. 兼顧「東方命理的時空節奏（造命）」與「西方塔羅的原型覺察（修心）」，讓命主既看見現實佈局策略，也能照見內在心理模式。`;
 
+const CLIENT_SYSTEM_INSTRUCTION = `你是一位清晰、客觀、一針見血且具建設性的人生策略與運勢顧問，負責將底層東方命理與西方塔羅運算結果，轉譯成一般人也能立刻看懂並執行的重點分析與行動指引。
+請嚴格遵守以下準則：
+1. 嚴格以輸入 JSON 中的數據作為推論基礎，確保判斷真實有據，絕不憑空捏造或重算排盤。
+2. 全程使用俐落、直白、務實的繁體中文（台灣慣用語彙 zh-TW），直接以第二人稱「你」稱呼使用者。
+3. 【去術語、不說教、不煽情】：避免堆砌艱澀命理專有名詞（如三方四正、四化飛星、化忌、天干地支代碼、十二長生、劫煞空亡、十神等），也避免過度柔軟安撫或空泛心靈雞湯；請直接說清優勢、現實風險、盲點與「該攻還是該守」的具體取捨建議。
+4. 聚焦在「現階段核心局勢、關鍵盲點與風險提醒、以及可立刻落地的行動步驟」，讓閱讀體驗明快、有料、具說服力。`;
+
 const app = express();
 app.use(express.json({ limit: '256kb' }));
 
@@ -446,8 +453,19 @@ app.post('/api/reading/summary', async (req, res) => {
     return;
   }
 
+  const operationMode =
+    req.body?.operationMode === 'client' ? 'client' : 'consultant';
+
   try {
-    const prompt = `請依據以下前端精密排盤系統已計算完成的「全息人生地圖 JSON 數據」，產出 Stage 1 四張精要解盤卡片。
+    const prompt =
+      operationMode === 'client'
+        ? `請依據以下已運算完成的個人全息命盤 JSON 數據，產出 4 張【清晰直白、客觀務實】的個人運勢與策略重點卡片（對象為命主本人，請用「你」稱呼，不堆砌生硬命理術語，也不要寫空泛雞湯，直接講明核心特質、今年攻守重點、現實盲點與可執行行動）：
+- 「當前流年運勢與心理課題」的 indicators 必須嚴格包含 事業、財運、感情、健康 四項，每項用俐落白話點出當下局勢與具體策略。
+- 語氣保持專業顧問的客觀與直接，有重點、有取捨、好執行。
+
+底層運算參考 JSON（請轉譯為直白策略分析，不要照抄術語）：
+${JSON.stringify(chartSummary, null, 2)}`
+        : `請依據以下前端精密排盤系統已計算完成的「全息人生地圖 JSON 數據」，產出 Stage 1 四張精要解盤卡片。
 請特別注意：
 - 「紫微」部分已套用勸學齋庚干四化（太陽祿、武曲權、太陰科、天同忌），請直接使用 JSON 中的星曜與四化表。
 - 「八字」部分已包含十神、藏干、星運長生與古典神煞，請適度結合重點神煞與五行結構論斷。
@@ -459,7 +477,10 @@ ${JSON.stringify(chartSummary, null, 2)}`;
 
     const response = await generateWithFallback(ai, {
       contents: prompt,
-      systemInstruction: SYSTEM_INSTRUCTION,
+      systemInstruction:
+        operationMode === 'client'
+          ? CLIENT_SYSTEM_INSTRUCTION
+          : SYSTEM_INSTRUCTION,
       responseMimeType: 'application/json',
       responseSchema: SUMMARY_RESPONSE_SCHEMA,
     });
@@ -531,15 +552,28 @@ app.post('/api/reading/chat', async (req, res) => {
       content: item.content.slice(0, 3000),
     }));
 
+  const operationMode =
+    req.body?.operationMode === 'client' ? 'client' : 'consultant';
+
   try {
     const historyTranscript =
       sanitizedHistory.length > 0
         ? `\n\n【先前諮詢對話紀錄】\n${sanitizedHistory
-            .map((t) => `${t.role === 'user' ? '命主/諮詢師提問' : '顧問回覆'}：${t.content}`)
+            .map((t) => `${t.role === 'user' ? '提問' : '顧問回覆'}：${t.content}`)
             .join('\n\n')}`
         : '';
 
-    const fullPrompt = `【命主全息命盤結構化數據（唯一事實來源，請勿重算）】
+    const fullPrompt =
+      operationMode === 'client'
+        ? `【底層命盤參考數據（請完全據此推論，但以清晰白話轉譯，避免艱澀術語）】
+${JSON.stringify(chartSummary, null, 2)}
+${historyTranscript}
+
+【使用者的提問】
+${question}
+
+請直接以第二人稱「你」清晰、客觀地回覆（可用小標題與重點條列，約 220~450 字）。不要堆砌難懂的命理術語，也不要過度安撫煽情，直接指出核心局勢、機會與風險盲點，最後給出 1~2 個務實可落地的行動建議。`
+        : `【命主全息命盤結構化數據（唯一事實來源，請勿重算）】
 ${JSON.stringify(chartSummary, null, 2)}
 ${historyTranscript}
 
@@ -550,7 +584,10 @@ ${question}
 
     const response = await generateWithFallback(ai, {
       contents: fullPrompt,
-      systemInstruction: SYSTEM_INSTRUCTION,
+      systemInstruction:
+        operationMode === 'client'
+          ? CLIENT_SYSTEM_INSTRUCTION
+          : SYSTEM_INSTRUCTION,
     });
 
     const answer = (response.text ?? '').trim();

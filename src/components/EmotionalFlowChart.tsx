@@ -11,8 +11,9 @@ import { calculateEmotionalFlow } from '../engines/emotionalFlowEngine';
 interface EmotionalFlowChartProps {
   client: ClientProfile;
   targetDate: string;
-  onAskFollowUp: (question: string, topicTag?: string) => void;
-  chatLoading: boolean;
+  onAskFollowUp?: (question: string, topicTag?: string) => void;
+  chatLoading?: boolean;
+  hideTechnicalCoords?: boolean;
 }
 
 type DualAxisMode = 'dual' | 'gap';
@@ -29,7 +30,8 @@ export const EmotionalFlowChart: React.FC<EmotionalFlowChartProps> = ({
   client,
   targetDate,
   onAskFollowUp,
-  chatLoading,
+  chatLoading = false,
+  hideTechnicalCoords = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -463,11 +465,13 @@ export const EmotionalFlowChart: React.FC<EmotionalFlowChartProps> = ({
             流年情緒流向 × 命理運程雙軸圖譜（{flow.year} 年）
           </h2>
           <p className="mt-0.5 text-xs text-[#6B7974] tabular-nums">
-            結合 Mary K. Greer 塔羅流年原型（{flow.preBirthdayCardName}
-            {flow.preBirthdayCardName !== flow.postBirthdayCardName
-              ? ` → ${flow.birthMonth}月生日轉「${flow.postBirthdayCardName}」`
-              : ''}
-            ）、紫微流月福德宮與八字月令心理節律
+            {hideTechnicalCoords
+              ? `對照 ${flow.year} 年各月外在運勢強弱與內在心理負荷，標記容易「外順內耗」的關鍵月份`
+              : `結合 Mary K. Greer 塔羅流年原型（${flow.preBirthdayCardName}${
+                  flow.preBirthdayCardName !== flow.postBirthdayCardName
+                    ? ` → ${flow.birthMonth}月生日轉「${flow.postBirthdayCardName}」`
+                    : ''
+                }）、紫微流月福德宮與八字月令心理節律`}
           </p>
         </div>
 
@@ -531,7 +535,7 @@ export const EmotionalFlowChart: React.FC<EmotionalFlowChartProps> = ({
             </span>
             <span aria-hidden="true">·</span>
             <span>
-              最需溫柔護心：
+              最需控管內耗：
               <strong className="font-mono text-[#9D4A54]">
                 {flow.mostCareNeededMonth.monthLabel} (
                 {flow.mostCareNeededMonth.emotionalScore > 0 ? '+' : ''}
@@ -589,51 +593,55 @@ export const EmotionalFlowChart: React.FC<EmotionalFlowChartProps> = ({
               </span>
             </div>
 
-            <button
-              type="button"
-              disabled={chatLoading}
-              onClick={() =>
-                onAskFollowUp(
-                  `請以具同理心與心理諮詢的角度，深入解析我在 ${flow.year} 年 ${focusedPoint.monthLabel}（${focusedPoint.baziMonthGanZhi}月，八字月令${focusedPoint.baziMonthTenStar}、流月福德宮落「${focusedPoint.ziweiMentalPalaceName}」、塔羅流年原型「${focusedPoint.tarotCardName}」），外在運程 ${focusedPoint.fortuneScore} 分與內在情緒心流 ${
-                    focusedPoint.emotionalScore > 0
-                      ? `+${focusedPoint.emotionalScore}`
-                      : focusedPoint.emotionalScore
-                  }（${focusedPoint.resonanceLabel}）之間的心境拉扯，並給我具體的情緒照顧與行動建議？`,
-                  `同理心流深探：${focusedPoint.monthLabel}`
-                )
-              }
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50 whitespace-nowrap shrink-0"
-            >
-              針對此月心境送入追問室
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            {onAskFollowUp && (
+              <button
+                type="button"
+                disabled={chatLoading}
+                onClick={() =>
+                  onAskFollowUp(
+                    `請以具同理心與心理諮詢的角度，深入解析命主在 ${flow.year} 年 ${focusedPoint.monthLabel}（${focusedPoint.baziMonthGanZhi}月，八字月令${focusedPoint.baziMonthTenStar}、流月福德宮落「${focusedPoint.ziweiMentalPalaceName}」、塔羅流年原型「${focusedPoint.tarotCardName}」），外在運程 ${focusedPoint.fortuneScore} 分與內在情緒心流 ${
+                      focusedPoint.emotionalScore > 0
+                        ? `+${focusedPoint.emotionalScore}`
+                        : focusedPoint.emotionalScore
+                    }（${focusedPoint.resonanceLabel}）之間的心境拉扯，並給出具體的心理調適與行動建議？`,
+                    `心流深探：${focusedPoint.monthLabel}`
+                  )
+                }
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50 whitespace-nowrap shrink-0"
+              >
+                針對此月心境送入追問室
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Factual 3-System Coordinates for Focused Month */}
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#5C6B66]">
-            <span>
-              塔羅原型：{focusedPoint.tarotCardDisplayNumber} 號「
-              {focusedPoint.tarotCardName}」（
-              {focusedPoint.tarotKeywords.slice(0, 2).join('・')}）
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              紫微流月：命宮落「{focusedPoint.ziweiMonthPalaceName}」／福德落「
-              {focusedPoint.ziweiMentalPalaceName}」／化忌「
-              {focusedPoint.ziweiMonthMutagenJi}」
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>
-              八字月令：{focusedPoint.baziMonthTenStar}・
-              {focusedPoint.baziMonthTerrain}
-            </span>
-          </div>
+          {/* Factual 3-System Coordinates for Focused Month (Consultant Mode Only) */}
+          {!hideTechnicalCoords && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#5C6B66]">
+              <span>
+                塔羅原型：{focusedPoint.tarotCardDisplayNumber} 號「
+                {focusedPoint.tarotCardName}」（
+                {focusedPoint.tarotKeywords.slice(0, 2).join('・')}）
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                紫微流月：命宮落「{focusedPoint.ziweiMonthPalaceName}」／福德落「
+                {focusedPoint.ziweiMentalPalaceName}」／化忌「
+                {focusedPoint.ziweiMonthMutagenJi}」
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>
+                八字月令：{focusedPoint.baziMonthTenStar}・
+                {focusedPoint.baziMonthTerrain}
+              </span>
+            </div>
+          )}
 
-          {/* Empathetic Reflection & Gentle Self-Care */}
+          {/* Reflection & Practical Adjustment */}
           <div className="mt-3 grid grid-cols-1 gap-4 rounded-md border border-[#ECE6DA] bg-[#FAF8F3] p-4 md:grid-cols-2">
             <div>
               <div className="text-[11.5px] font-semibold text-[#9D4A54]">
-                同理心覺察解讀
+                {hideTechnicalCoords ? '當月狀態觀察' : '同理心覺察解讀'}
               </div>
               <p className="mt-1 text-xs leading-[1.75] text-[#2F3E39]">
                 {focusedPoint.empathyNote}
@@ -641,7 +649,7 @@ export const EmotionalFlowChart: React.FC<EmotionalFlowChartProps> = ({
             </div>
             <div className="border-t border-[#E8E1D3] pt-3 md:border-l md:border-t-0 md:pl-4 md:pt-0">
               <div className="text-[11.5px] font-semibold text-[#2B5B4C]">
-                本月溫柔護心建議
+                本月狀態調整建議
               </div>
               <p className="mt-1 text-xs leading-[1.75] text-[#2F3E39]">
                 {focusedPoint.selfCareTip}

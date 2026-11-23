@@ -44,8 +44,8 @@ const PAGE_W = 1588;
 const PAGE_H = 2246;
 const MARGIN_X = 96;
 const CONTENT_W = PAGE_W - MARGIN_X * 2;
-const HEADER_SAFE_Y = 122;
-const FOOTER_SAFE_Y = PAGE_H - 110;
+const HEADER_SAFE_Y = 124;
+const FOOTER_SAFE_Y = PAGE_H - 114;
 
 const FONT_SERIF = '"Noto Serif TC", Georgia, serif';
 const FONT_SANS = '"Noto Sans TC", -apple-system, BlinkMacSystemFont, sans-serif';
@@ -191,6 +191,12 @@ class EditorialCanvasDoc {
     return String(this.chapterCounter).padStart(2, '0');
   }
 
+  resetTextState() {
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'top';
+    this.ctx.setLineDash([]);
+  }
+
   newPage(isFirst = false) {
     const canvas = document.createElement('canvas');
     canvas.width = PAGE_W;
@@ -209,11 +215,17 @@ class EditorialCanvasDoc {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(48, 48, PAGE_W - 96, PAGE_H - 96);
 
+    this.resetTextState();
+
     if (!isFirst) {
       ctx.font = `500 20px ${FONT_SERIF}`;
       ctx.fillStyle = COLORS.inkGreen;
-      ctx.textBaseline = 'top';
-      ctx.fillText(`全息人生地圖報告・${this.clientName}`, MARGIN_X, 72);
+      const leftTitle = this.fitText(
+        `全息人生地圖報告・${this.clientName}`,
+        CONTENT_W - 360,
+        `500 20px ${FONT_SERIF}`
+      );
+      ctx.fillText(leftTitle, MARGIN_X, 72);
 
       ctx.font = `400 18px ${FONT_MONO}`;
       ctx.fillStyle = COLORS.textMuted;
@@ -224,8 +236,8 @@ class EditorialCanvasDoc {
       ctx.strokeStyle = COLORS.hairline;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(MARGIN_X, 106);
-      ctx.lineTo(PAGE_W - MARGIN_X, 106);
+      ctx.moveTo(MARGIN_X, 108);
+      ctx.lineTo(PAGE_W - MARGIN_X, 108);
       ctx.stroke();
 
       this.y = HEADER_SAFE_Y + 14;
@@ -240,8 +252,19 @@ class EditorialCanvasDoc {
     }
   }
 
+  fitText(text: string, maxWidth: number, font: string): string {
+    this.ctx.font = font;
+    if (this.ctx.measureText(text).width <= maxWidth) return text;
+    let trimmed = text;
+    while (trimmed.length > 2 && this.ctx.measureText(`${trimmed}…`).width > maxWidth) {
+      trimmed = trimmed.slice(0, -1);
+    }
+    return `${trimmed}…`;
+  }
+
   wrapText(text: string, maxWidth: number, font: string): string[] {
     this.ctx.font = font;
+    const safeWidth = Math.max(40, maxWidth - 4);
     const paragraphs = text.split(/\r?\n/);
     const lines: string[] = [];
 
@@ -253,7 +276,7 @@ class EditorialCanvasDoc {
       let current = '';
       for (const ch of para) {
         const candidate = current + ch;
-        if (this.ctx.measureText(candidate).width > maxWidth && current) {
+        if (this.ctx.measureText(candidate).width > safeWidth && current) {
           lines.push(current);
           current = ch;
         } else {
@@ -267,35 +290,49 @@ class EditorialCanvasDoc {
 
   drawSectionHeader(title: string, subtitle?: string) {
     const num = this.nextChapterNum();
-    this.ensureSpace(subtitle ? 104 : 76);
-    const ctx = this.ctx;
+    const titleFont = `700 28px ${FONT_SERIF}`;
+    const subFont = `400 18px ${FONT_SANS}`;
+    const titleLines = this.wrapText(title, CONTENT_W - 56, titleFont);
+    const subLines = subtitle ? this.wrapText(subtitle, CONTENT_W - 56, subFont) : [];
+    const headerH =
+      titleLines.length * 38 +
+      (subLines.length > 0 ? 6 + subLines.length * 26 : 0) +
+      28;
 
-    ctx.textBaseline = 'top';
+    // Reserve header + minimum space for the start of the section's first card to avoid orphan headers
+    this.ensureSpace(headerH + 90);
+    const ctx = this.ctx;
+    this.resetTextState();
+
     ctx.font = `600 22px ${FONT_MONO}`;
     ctx.fillStyle = COLORS.gold;
     ctx.fillText(num, MARGIN_X, this.y + 4);
 
-    ctx.font = `700 30px ${FONT_SERIF}`;
+    ctx.font = titleFont;
     ctx.fillStyle = COLORS.inkGreen;
-    ctx.fillText(title, MARGIN_X + 46, this.y);
+    titleLines.forEach((line) => {
+      ctx.fillText(line, MARGIN_X + 50, this.y);
+      this.y += 38;
+    });
 
-    this.y += 40;
-
-    if (subtitle) {
-      ctx.font = `400 18.5px ${FONT_SANS}`;
+    if (subLines.length > 0) {
+      this.y += 4;
+      ctx.font = subFont;
       ctx.fillStyle = COLORS.textMuted;
-      ctx.fillText(subtitle, MARGIN_X + 46, this.y);
-      this.y += 28;
+      subLines.forEach((line) => {
+        ctx.fillText(line, MARGIN_X + 50, this.y);
+        this.y += 26;
+      });
     }
 
     ctx.strokeStyle = COLORS.inkGreen;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(MARGIN_X, this.y + 4);
-    ctx.lineTo(PAGE_W - MARGIN_X, this.y + 4);
+    ctx.moveTo(MARGIN_X, this.y + 6);
+    ctx.lineTo(PAGE_W - MARGIN_X, this.y + 6);
     ctx.stroke();
 
-    this.y += 24;
+    this.y += 26;
   }
 
   drawCardBox(
@@ -327,6 +364,7 @@ class EditorialCanvasDoc {
       if (!ctx) return;
 
       const lineY = PAGE_H - 96;
+      ctx.setLineDash([]);
       ctx.strokeStyle = COLORS.hairline;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -334,6 +372,7 @@ class EditorialCanvasDoc {
       ctx.lineTo(PAGE_W - MARGIN_X, lineY);
       ctx.stroke();
 
+      ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.font = `400 17px ${FONT_SANS}`;
       ctx.fillStyle = COLORS.textMuted;
@@ -354,8 +393,18 @@ class EditorialCanvasDoc {
 function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) {
   const { client, ziwei, bazi, tarot, targetDate, activeScope } = input;
   const ctx = doc.ctx;
+  doc.resetTextState();
 
-  const bannerH = 228;
+  const innerW = CONTENT_W - 72;
+  const meta1Font = `400 19.5px ${FONT_SANS}`;
+  const meta2Font = `400 17.5px ${FONT_MONO}`;
+  const metaLine1Text = `${client.gender}命  ·  生肖${ziwei.zodiac}  ·  ${ziwei.fiveElementsClass}  ·  日主 ${bazi.dayMaster.stem}（${bazi.dayMaster.yinYang}${bazi.dayMaster.element}）  ·  塔羅 ${tarot.constellation.id} 號${tarot.constellation.name}`;
+  const metaLine2Text = `國曆 ${client.birthDate} ${client.birthTime}（${ziwei.time}）  |  農曆 ${ziwei.lunarDate}  |  查詢座標 ${targetDate}（${SCOPE_LABELS[activeScope]}）`;
+
+  const meta1Lines = doc.wrapText(metaLine1Text, innerW, meta1Font);
+  const meta2Lines = doc.wrapText(metaLine2Text, innerW, meta2Font);
+  const bannerH = 142 + meta1Lines.length * 29 + meta2Lines.length * 26 + 26;
+
   ctx.fillStyle = COLORS.inkGreen;
   ctx.fillRect(MARGIN_X, doc.y, CONTENT_W, bannerH);
 
@@ -363,38 +412,54 @@ function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) 
   ctx.lineWidth = 1.5;
   ctx.strokeRect(MARGIN_X + 12, doc.y + 12, CONTENT_W - 24, bannerH - 24);
 
-  ctx.textBaseline = 'top';
+  let by = doc.y + 30;
   ctx.font = `500 18px ${FONT_SANS}`;
   ctx.fillStyle = COLORS.goldLight;
   ctx.fillText(
-    `東方命理 × 西方原型 ｜ 全息人生地圖專業報告書（${SCOPE_LABELS[activeScope]}視角）`,
+    doc.fitText(
+      `東方命理 × 西方原型 ｜ 全息人生地圖專業報告書（${SCOPE_LABELS[activeScope]}視角）`,
+      innerW,
+      `500 18px ${FONT_SANS}`
+    ),
     MARGIN_X + 36,
-    doc.y + 30
+    by
   );
+  by += 36;
 
-  ctx.font = `700 44px ${FONT_SERIF}`;
+  ctx.font = `700 42px ${FONT_SERIF}`;
   ctx.fillStyle = '#FAF8F3';
-  ctx.fillText(`${client.name}・全息命盤報告書`, MARGIN_X + 36, doc.y + 66);
+  ctx.fillText(
+    doc.fitText(`${client.name}・全息命盤報告書`, innerW, `700 42px ${FONT_SERIF}`),
+    MARGIN_X + 36,
+    by
+  );
+  by += 62;
 
-  ctx.font = `400 20px ${FONT_SANS}`;
+  ctx.font = meta1Font;
   ctx.fillStyle = '#C9D7D2';
-  const metaLine1 = `${client.gender}命  ·  生肖${ziwei.zodiac}  ·  ${ziwei.fiveElementsClass}  ·  日主 ${bazi.dayMaster.stem}（${bazi.dayMaster.yinYang}${bazi.dayMaster.element}）  ·  塔羅 ${tarot.constellation.id} 號${tarot.constellation.name}`;
-  ctx.fillText(metaLine1, MARGIN_X + 36, doc.y + 132);
+  meta1Lines.forEach((l) => {
+    ctx.fillText(l, MARGIN_X + 36, by);
+    by += 29;
+  });
+  by += 6;
 
-  ctx.font = `400 18px ${FONT_MONO}`;
+  ctx.font = meta2Font;
   ctx.fillStyle = '#A8BCB4';
-  const metaLine2 = `國曆 ${client.birthDate} ${client.birthTime}（${ziwei.time}）  |  農曆 ${ziwei.lunarDate}  |  查詢座標 ${targetDate}（${SCOPE_LABELS[activeScope]}）`;
-  ctx.fillText(metaLine2, MARGIN_X + 36, doc.y + 168);
+  meta2Lines.forEach((l) => {
+    ctx.fillText(l, MARGIN_X + 36, by);
+    by += 26;
+  });
 
-  doc.y += bannerH + 26;
+  doc.y += bannerH + 24;
 
-  // 4-Column Executive Anchor Summary Strip
+  // 4-Column Executive Anchor Summary Strip (safely wrapped/fitted inside each column)
   const colW = CONTENT_W / 4;
-  const stripH = 114;
-  doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, stripH, COLORS.white, COLORS.hairline);
-
+  const colInnerW = colW - 36;
   const mingPalace = ziwei.palaces[ziwei.mingPalaceIndex];
   const bodyPalace = ziwei.palaces[ziwei.bodyPalaceIndex];
+
+  const mainFont = `700 21px ${FONT_SERIF}`;
+  const subFont = `400 15.5px ${FONT_SANS}`;
   const anchors = [
     {
       kicker: '紫微命宮主星',
@@ -416,7 +481,17 @@ function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) 
       main: `${tarot.currentYearCard.card.displayNumber} ${tarot.currentYearCard.card.name}`,
       sub: `下次切換 ${tarot.nextSwitchDate}`,
     },
-  ];
+  ].map((a) => ({
+    ...a,
+    mainLines: doc.wrapText(a.main, colInnerW, mainFont).slice(0, 2),
+    subLines: doc.wrapText(a.sub, colInnerW, subFont).slice(0, 2),
+  }));
+
+  const maxMainLines = Math.max(1, ...anchors.map((a) => a.mainLines.length));
+  const maxSubLines = Math.max(1, ...anchors.map((a) => a.subLines.length));
+  const stripH = 48 + maxMainLines * 29 + 8 + maxSubLines * 22 + 18;
+
+  doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, stripH, COLORS.white, COLORS.hairline);
 
   anchors.forEach((a, i) => {
     const cx = MARGIN_X + i * colW;
@@ -428,21 +503,29 @@ function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) 
       ctx.lineTo(cx, doc.y + stripH - 16);
       ctx.stroke();
     }
-    ctx.textBaseline = 'top';
-    ctx.font = `500 17px ${FONT_SANS}`;
+    let ay = doc.y + 18;
+    ctx.font = `500 16px ${FONT_SANS}`;
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(a.kicker, cx + 22, doc.y + 18);
+    ctx.fillText(a.kicker, cx + 18, ay);
+    ay += 28;
 
-    ctx.font = `700 23px ${FONT_SERIF}`;
+    ctx.font = mainFont;
     ctx.fillStyle = COLORS.inkGreen;
-    ctx.fillText(a.main, cx + 22, doc.y + 46);
+    a.mainLines.forEach((l) => {
+      ctx.fillText(l, cx + 18, ay);
+      ay += 29;
+    });
+    ay += 6;
 
-    ctx.font = `400 16px ${FONT_SANS}`;
+    ctx.font = subFont;
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(a.sub, cx + 22, doc.y + 80);
+    a.subLines.forEach((l) => {
+      ctx.fillText(l, cx + 18, ay);
+      ay += 22;
+    });
   });
 
-  doc.y += stripH + 30;
+  doc.y += stripH + 28;
 }
 
 function renderScopeFocusSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) {
@@ -460,6 +543,7 @@ function renderScopeFocusSection(doc: EditorialCanvasDoc, input: HolisticPdfExpo
   );
 
   const font = `400 18.5px ${FONT_SANS}`;
+  const lineH = 30;
   const rows = [
     { label: '紫微焦點', color: COLORS.inkGreen, text: digest.ziweiPoint },
     { label: '八字焦點', color: COLORS.pine, text: digest.baziPoint },
@@ -469,21 +553,21 @@ function renderScopeFocusSection(doc: EditorialCanvasDoc, input: HolisticPdfExpo
     lines: doc.wrapText(`${r.label}：${r.text}`, CONTENT_W - 48, font),
   }));
 
-  const boxH = 34 + rows.reduce((s, r) => s + r.lines.length * 29 + 10, 0) + 10;
+  const boxH = 22 + rows.reduce((s, r) => s + r.lines.length * lineH + 12, 0) + 12;
   doc.ensureSpace(boxH + 24);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, boxH, COLORS.white, COLORS.hairline);
 
-  let cy = doc.y + 20;
   const ctx = doc.ctx;
-  ctx.textBaseline = 'top';
+  doc.resetTextState();
+  let cy = doc.y + 22;
   ctx.font = font;
   rows.forEach((r) => {
     r.lines.forEach((line, idx) => {
       ctx.fillStyle = idx === 0 ? r.color : COLORS.textBody;
       ctx.fillText(line, MARGIN_X + 24, cy);
-      cy += 29;
+      cy += lineH;
     });
-    cy += 10;
+    cy += 12;
   });
 
   doc.y += boxH + 28;
@@ -519,73 +603,83 @@ function renderZiweiSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInp
 
   const sfLines = doc.wrapText(`命宮三方四正：${sfText}`, CONTENT_W - 44, `400 18px ${FONT_SANS}`);
   const flowLines = doc.wrapText(flowSummary, CONTENT_W - 44, `500 18px ${FONT_SANS}`);
-  const boxH = 34 + sfLines.length * 28 + flowLines.length * 28 + 16;
+  const boxH = 20 + sfLines.length * 29 + 10 + flowLines.length * 29 + 18;
 
   doc.ensureSpace(boxH + 20);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, boxH, COLORS.white, COLORS.hairline);
 
-  let cy = doc.y + 18;
-  doc.ctx.textBaseline = 'top';
-  doc.ctx.font = `400 18px ${FONT_SANS}`;
-  doc.ctx.fillStyle = COLORS.textBody;
-  sfLines.forEach((line) => {
-    doc.ctx.fillText(line, MARGIN_X + 22, cy);
-    cy += 28;
-  });
-  cy += 6;
-  doc.ctx.font = `500 18px ${FONT_SANS}`;
-  doc.ctx.fillStyle = COLORS.pine;
-  flowLines.forEach((line) => {
-    doc.ctx.fillText(line, MARGIN_X + 22, cy);
-    cy += 28;
-  });
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let cy = doc.y + 20;
+    ctx.font = `400 18px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.textBody;
+    sfLines.forEach((line) => {
+      ctx.fillText(line, MARGIN_X + 22, cy);
+      cy += 29;
+    });
+    cy += 10;
+    ctx.font = `500 18px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.pine;
+    flowLines.forEach((line) => {
+      ctx.fillText(line, MARGIN_X + 22, cy);
+      cy += 29;
+    });
+  }
   doc.y += boxH + 18;
 
   // Four Transformations Table
-  const mutHeaderH = 40;
-  const mutRowH = 38;
+  const mutHeaderH = 42;
+  const mutRowH = 40;
   const mutTableH = mutHeaderH + ziwei.mutagenTable.length * mutRowH;
   doc.ensureSpace(mutTableH + 24);
 
-  const mutCols = [240, 290, 290, 290, CONTENT_W - 1110];
-  const mutHeaders = ['運限層級（干支）', '化祿（資源・順勢）', '化權（主導・開創）', '化科（名聲・貴人）', '化忌（執著・課題）'];
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    const mutCols = [260, 284, 284, 284, CONTENT_W - 1112];
+    const mutHeaders = ['運限層級（干支）', '化祿（資源・順勢）', '化權（主導・開創）', '化科（名聲・貴人）', '化忌（執著・課題）'];
 
-  doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, mutTableH, COLORS.white, COLORS.hairline);
-  doc.ctx.fillStyle = COLORS.surfaceSoft;
-  doc.ctx.fillRect(MARGIN_X, doc.y, CONTENT_W, mutHeaderH);
+    doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, mutTableH, COLORS.white, COLORS.hairline);
+    ctx.fillStyle = COLORS.surfaceSoft;
+    ctx.fillRect(MARGIN_X + 1, doc.y + 1, CONTENT_W - 2, mutHeaderH - 1);
 
-  let colX = MARGIN_X;
-  doc.ctx.textBaseline = 'middle';
-  mutHeaders.forEach((h, i) => {
-    doc.ctx.font = `600 17px ${FONT_SANS}`;
-    doc.ctx.fillStyle =
-      i === 1 ? COLORS.green : i === 2 ? '#3B4D8F' : i === 3 ? '#0F6D7A' : i === 4 ? COLORS.red : COLORS.inkGreen;
-    doc.ctx.fillText(h, colX + 16, doc.y + mutHeaderH / 2);
-    colX += mutCols[i];
-  });
-
-  ziwei.mutagenTable.forEach((row, rIdx) => {
-    const ry = doc.y + mutHeaderH + rIdx * mutRowH;
-    if (row.scope === input.activeScope) {
-      doc.ctx.fillStyle = '#FAF4E8';
-      doc.ctx.fillRect(MARGIN_X + 1, ry, CONTENT_W - 2, mutRowH);
-    }
-    doc.ctx.strokeStyle = COLORS.hairlineSoft;
-    doc.ctx.lineWidth = 1;
-    doc.ctx.beginPath();
-    doc.ctx.moveTo(MARGIN_X, ry);
-    doc.ctx.lineTo(MARGIN_X + CONTENT_W, ry);
-    doc.ctx.stroke();
-
-    const vals = [`${row.label}（${row.ganZhi}）`, row.lu, row.quan, row.ke, row.ji];
-    let rx = MARGIN_X;
-    vals.forEach((v, cIdx) => {
-      doc.ctx.font = cIdx === 0 ? `600 18px ${FONT_SERIF}` : `500 18px ${FONT_SANS}`;
-      doc.ctx.fillStyle = cIdx === 0 ? COLORS.inkGreen : COLORS.textBody;
-      doc.ctx.fillText(v || '—', rx + 16, ry + mutRowH / 2);
-      rx += mutCols[cIdx];
+    let colX = MARGIN_X;
+    ctx.textBaseline = 'middle';
+    mutHeaders.forEach((h, i) => {
+      const f = `600 17px ${FONT_SANS}`;
+      ctx.font = f;
+      ctx.fillStyle =
+        i === 1 ? COLORS.green : i === 2 ? '#3B4D8F' : i === 3 ? '#0F6D7A' : i === 4 ? COLORS.red : COLORS.inkGreen;
+      ctx.fillText(doc.fitText(h, mutCols[i] - 24, f), colX + 14, doc.y + mutHeaderH / 2);
+      colX += mutCols[i];
     });
-  });
+
+    ziwei.mutagenTable.forEach((row, rIdx) => {
+      const ry = doc.y + mutHeaderH + rIdx * mutRowH;
+      if (row.scope === input.activeScope) {
+        ctx.fillStyle = '#FAF4E8';
+        ctx.fillRect(MARGIN_X + 1, ry, CONTENT_W - 2, mutRowH);
+      }
+      ctx.strokeStyle = COLORS.hairlineSoft;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(MARGIN_X, ry);
+      ctx.lineTo(MARGIN_X + CONTENT_W, ry);
+      ctx.stroke();
+
+      const vals = [`${row.label}（${row.ganZhi}）`, row.lu, row.quan, row.ke, row.ji];
+      let rx = MARGIN_X;
+      vals.forEach((v, cIdx) => {
+        const f = cIdx === 0 ? `600 17.5px ${FONT_SERIF}` : `500 17.5px ${FONT_SANS}`;
+        ctx.font = f;
+        ctx.fillStyle = cIdx === 0 ? COLORS.inkGreen : COLORS.textBody;
+        ctx.fillText(doc.fitText(v || '—', mutCols[cIdx] - 24, f), rx + 14, ry + mutRowH / 2);
+        rx += mutCols[cIdx];
+      });
+    });
+    doc.resetTextState();
+  }
 
   doc.y += mutTableH + 18;
 
@@ -595,64 +689,66 @@ function renderZiweiSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInp
     .map((n) => ziwei.palaces.find((p) => p.name === n))
     .filter((p): p is NonNullable<typeof p> => Boolean(p));
 
-  const pHeaderH = 38;
-  const pRowH = 40;
+  const pHeaderH = 40;
+  const pRowH = 42;
   const pTableH = pHeaderH + keyPalaces.length * pRowH;
   doc.ensureSpace(pTableH + 30);
 
-  const pCols = [190, 440, 440, CONTENT_W - 1070];
-  doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, pTableH, COLORS.white, COLORS.hairline);
-  doc.ctx.fillStyle = COLORS.surfaceSoft;
-  doc.ctx.fillRect(MARGIN_X, doc.y, CONTENT_W, pHeaderH);
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    const pCols = [220, 460, 476, CONTENT_W - 1156];
+    doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, pTableH, COLORS.white, COLORS.hairline);
+    ctx.fillStyle = COLORS.surfaceSoft;
+    ctx.fillRect(MARGIN_X + 1, doc.y + 1, CONTENT_W - 2, pHeaderH - 1);
 
-  const pHeaders = ['重點宮位（干支）', '主星（亮度・本命四化）', '輔星吉煞', '大限歲數'];
-  let px = MARGIN_X;
-  doc.ctx.textBaseline = 'middle';
-  pHeaders.forEach((h, i) => {
-    doc.ctx.font = `600 17px ${FONT_SANS}`;
-    doc.ctx.fillStyle = COLORS.inkGreen;
-    doc.ctx.fillText(h, px + 16, doc.y + pHeaderH / 2);
-    px += pCols[i];
-  });
-
-  keyPalaces.forEach((p, idx) => {
-    const ry = doc.y + pHeaderH + idx * pRowH;
-    doc.ctx.strokeStyle = COLORS.hairlineSoft;
-    doc.ctx.beginPath();
-    doc.ctx.moveTo(MARGIN_X, ry);
-    doc.ctx.lineTo(MARGIN_X + CONTENT_W, ry);
-    doc.ctx.stroke();
-
-    const majorStr =
-      p.majorStars
-        .map(
-          (s) =>
-            `${s.name}${s.brightness ? `(${s.brightness})` : ''}${s.mutagen ? `[${s.mutagen}]` : ''}`
-        )
-        .join('、') || '空宮';
-    const minorStr = p.minorStars.map((s) => s.name).join('、') || '—';
-    const nameStr = `${p.name}${p.isBodyPalace ? '[身]' : ''}（${p.heavenlyStem}${p.earthlyBranch}）`;
-    const ageStr = `${p.decadalRange[0]}–${p.decadalRange[1]}歲`;
-
-    const rowVals = [nameStr, majorStr, minorStr, ageStr];
-    let rx = MARGIN_X;
-    rowVals.forEach((v, cIdx) => {
-      doc.ctx.font =
-        cIdx === 0
-          ? `600 17px ${FONT_SERIF}`
-          : cIdx === 3
-            ? `400 17px ${FONT_MONO}`
-            : `400 17px ${FONT_SANS}`;
-      doc.ctx.fillStyle = cIdx === 1 ? COLORS.vermilion : COLORS.textBody;
-      let display = v;
-      const maxW = pCols[cIdx] - 28;
-      while (doc.ctx.measureText(display).width > maxW && display.length > 4) {
-        display = `${display.slice(0, -2)}…`;
-      }
-      doc.ctx.fillText(display, rx + 16, ry + pRowH / 2);
-      rx += pCols[cIdx];
+    const pHeaders = ['重點宮位（干支）', '主星（亮度・本命四化）', '輔星吉煞', '大限歲數'];
+    let px = MARGIN_X;
+    ctx.textBaseline = 'middle';
+    pHeaders.forEach((h, i) => {
+      const f = `600 17px ${FONT_SANS}`;
+      ctx.font = f;
+      ctx.fillStyle = COLORS.inkGreen;
+      ctx.fillText(doc.fitText(h, pCols[i] - 24, f), px + 14, doc.y + pHeaderH / 2);
+      px += pCols[i];
     });
-  });
+
+    keyPalaces.forEach((p, idx) => {
+      const ry = doc.y + pHeaderH + idx * pRowH;
+      ctx.strokeStyle = COLORS.hairlineSoft;
+      ctx.beginPath();
+      ctx.moveTo(MARGIN_X, ry);
+      ctx.lineTo(MARGIN_X + CONTENT_W, ry);
+      ctx.stroke();
+
+      const majorStr =
+        p.majorStars
+          .map(
+            (s) =>
+              `${s.name}${s.brightness ? `(${s.brightness})` : ''}${s.mutagen ? `[${s.mutagen}]` : ''}`
+          )
+          .join('、') || '空宮';
+      const minorStr = p.minorStars.map((s) => s.name).join('、') || '—';
+      const nameStr = `${p.name}${p.isBodyPalace ? '[身]' : ''}（${p.heavenlyStem}${p.earthlyBranch}）`;
+      const ageStr = `${p.decadalRange[0]}–${p.decadalRange[1]}歲`;
+
+      const rowVals = [nameStr, majorStr, minorStr, ageStr];
+      let rx = MARGIN_X;
+      rowVals.forEach((v, cIdx) => {
+        const f =
+          cIdx === 0
+            ? `600 17px ${FONT_SERIF}`
+            : cIdx === 3
+              ? `400 17px ${FONT_MONO}`
+              : `400 17px ${FONT_SANS}`;
+        ctx.font = f;
+        ctx.fillStyle = cIdx === 1 ? COLORS.vermilion : COLORS.textBody;
+        ctx.fillText(doc.fitText(v, pCols[cIdx] - 24, f), rx + 14, ry + pRowH / 2);
+        rx += pCols[cIdx];
+      });
+    });
+    doc.resetTextState();
+  }
 
   doc.y += pTableH + 34;
 }
@@ -708,23 +804,23 @@ function renderBaziSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInpu
   const dataColW = (CONTENT_W - labelColW) / cols.length;
 
   const shenShaFont = `400 15.5px ${FONT_SANS}`;
-  const shenShaWrapped = cols.map((c) => doc.wrapText(c.shenSha, dataColW - 20, shenShaFont));
+  const shenShaWrapped = cols.map((c) => doc.wrapText(c.shenSha, dataColW - 22, shenShaFont));
   const maxShenShaLines = Math.max(1, ...shenShaWrapped.map((l) => l.length));
-  const shenShaRowH = Math.max(54, maxShenShaLines * 22 + 20);
+  const shenShaRowH = Math.max(58, maxShenShaLines * 24 + 22);
 
   const hiddenFont = `400 15.5px ${FONT_SANS}`;
-  const hiddenWrapped = cols.map((c) => doc.wrapText(c.hidden, dataColW - 20, hiddenFont));
+  const hiddenWrapped = cols.map((c) => doc.wrapText(c.hidden, dataColW - 22, hiddenFont));
   const maxHiddenLines = Math.max(1, ...hiddenWrapped.map((l) => l.length));
-  const hiddenRowH = Math.max(54, maxHiddenLines * 22 + 18);
+  const hiddenRowH = Math.max(58, maxHiddenLines * 24 + 22);
 
   const rowDefs = [
-    { name: '柱位', h: 52 },
-    { name: '主星十神', h: 38 },
-    { name: '天干地支', h: 96 },
+    { name: '柱位', h: 62 },
+    { name: '主星十神', h: 42 },
+    { name: '天干地支', h: 102 },
     { name: '地支藏干', h: hiddenRowH },
-    { name: '星運長生', h: 38 },
-    { name: '納音五行', h: 38 },
-    { name: '旬空空亡', h: 38 },
+    { name: '星運長生', h: 42 },
+    { name: '納音五行', h: 42 },
+    { name: '旬空空亡', h: 42 },
     { name: '古典神煞', h: shenShaRowH },
   ];
   const totalTableH = rowDefs.reduce((s, r) => s + r.h, 0);
@@ -732,146 +828,174 @@ function renderBaziSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInpu
   doc.ensureSpace(totalTableH + 24);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, totalTableH, COLORS.white, COLORS.hairline);
 
-  const ctx = doc.ctx;
-  let ry = doc.y;
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let ry = doc.y;
 
-  cols.forEach((col, i) => {
-    const cx = MARGIN_X + labelColW + i * dataColW;
-    if (col.isFlow) {
-      ctx.fillStyle = '#FAF4E8';
-      ctx.fillRect(cx, doc.y, dataColW, totalTableH);
-    } else if (col.isDay) {
-      ctx.fillStyle = '#F3F7F5';
-      ctx.fillRect(cx, doc.y, dataColW, totalTableH);
-    }
-  });
-
-  ctx.fillStyle = COLORS.surfaceSoft;
-  ctx.fillRect(MARGIN_X, doc.y, labelColW, totalTableH);
-
-  rowDefs.forEach((row, rIdx) => {
-    if (rIdx > 0) {
-      ctx.strokeStyle = COLORS.hairlineSoft;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(MARGIN_X, ry);
-      ctx.lineTo(MARGIN_X + CONTENT_W, ry);
-      ctx.stroke();
-    }
-
-    ctx.textBaseline = 'middle';
-    ctx.font = `600 17px ${FONT_SANS}`;
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(row.name, MARGIN_X + 18, ry + row.h / 2);
-
-    cols.forEach((col, cIdx) => {
-      const cx = MARGIN_X + labelColW + cIdx * dataColW;
-      const centerX = cx + dataColW / 2;
-      ctx.textAlign = 'center';
-
-      if (rIdx === 0) {
-        ctx.font = `700 20px ${FONT_SERIF}`;
-        ctx.fillStyle = col.isFlow ? COLORS.gold : COLORS.inkGreen;
-        ctx.fillText(col.title, centerX, ry + (col.sub ? 18 : row.h / 2));
-        if (col.sub) {
-          ctx.font = `500 14px ${FONT_SANS}`;
-          ctx.fillStyle = col.isDay ? COLORS.vermilion : COLORS.gold;
-          ctx.fillText(col.sub, centerX, ry + 39);
-        }
-      } else if (rIdx === 1) {
-        ctx.font = `600 17px ${FONT_SANS}`;
-        ctx.fillStyle = col.isDay ? COLORS.vermilion : COLORS.pine;
-        ctx.fillText(col.tenStar, centerX, ry + row.h / 2);
-      } else if (rIdx === 2) {
-        ctx.font = `700 36px ${FONT_SERIF}`;
-        ctx.fillStyle = ELEMENT_HEX[col.stemEl];
-        ctx.fillText(col.stem, centerX, ry + 28);
-        ctx.fillStyle = ELEMENT_HEX[col.branchEl];
-        ctx.fillText(col.branch, centerX, ry + 70);
-      } else if (rIdx === 3) {
-        ctx.font = hiddenFont;
-        ctx.fillStyle = COLORS.textBody;
-        ctx.textBaseline = 'top';
-        let ly = ry + 10;
-        hiddenWrapped[cIdx].forEach((l) => {
-          ctx.fillText(l, centerX, ly);
-          ly += 22;
-        });
-      } else if (rIdx === 4) {
-        ctx.font = `600 17px ${FONT_SANS}`;
-        ctx.fillStyle = COLORS.pine;
-        ctx.fillText(col.terrain, centerX, ry + row.h / 2);
-      } else if (rIdx === 5) {
-        ctx.font = `400 16px ${FONT_SANS}`;
-        ctx.fillStyle = COLORS.textBody;
-        ctx.fillText(col.sound, centerX, ry + row.h / 2);
-      } else if (rIdx === 6) {
-        ctx.font = `500 17px ${FONT_SERIF}`;
-        ctx.fillStyle = COLORS.textMuted;
-        ctx.fillText(col.kongWang, centerX, ry + row.h / 2);
-      } else if (rIdx === 7) {
-        ctx.font = shenShaFont;
-        ctx.fillStyle = COLORS.textBody;
-        ctx.textBaseline = 'top';
-        let ly = ry + 10;
-        shenShaWrapped[cIdx].forEach((l) => {
-          ctx.fillText(l, centerX, ly);
-          ly += 22;
-        });
+    cols.forEach((col, i) => {
+      const cx = MARGIN_X + labelColW + i * dataColW;
+      if (col.isFlow) {
+        ctx.fillStyle = '#FAF4E8';
+        ctx.fillRect(cx, doc.y + 1, dataColW, totalTableH - 2);
+      } else if (col.isDay) {
+        ctx.fillStyle = '#F3F7F5';
+        ctx.fillRect(cx, doc.y + 1, dataColW, totalTableH - 2);
       }
-      ctx.textAlign = 'left';
     });
 
-    ry += row.h;
-  });
+    ctx.fillStyle = COLORS.surfaceSoft;
+    ctx.fillRect(MARGIN_X + 1, doc.y + 1, labelColW - 1, totalTableH - 2);
 
-  ctx.strokeStyle = COLORS.hairlineSoft;
-  ctx.lineWidth = 1;
-  for (let i = 0; i < cols.length; i++) {
-    const vx = MARGIN_X + labelColW + i * dataColW;
-    ctx.beginPath();
-    ctx.moveTo(vx, doc.y);
-    ctx.lineTo(vx, doc.y + totalTableH);
-    ctx.stroke();
+    rowDefs.forEach((row, rIdx) => {
+      if (rIdx > 0) {
+        ctx.strokeStyle = COLORS.hairlineSoft;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(MARGIN_X, ry);
+        ctx.lineTo(MARGIN_X + CONTENT_W, ry);
+        ctx.stroke();
+      }
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = `600 17px ${FONT_SANS}`;
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(row.name, MARGIN_X + 18, ry + row.h / 2);
+
+      cols.forEach((col, cIdx) => {
+        const cx = MARGIN_X + labelColW + cIdx * dataColW;
+        const centerX = cx + dataColW / 2;
+        ctx.textAlign = 'center';
+
+        if (rIdx === 0) {
+          ctx.textBaseline = 'middle';
+          const titleF = `700 19.5px ${FONT_SERIF}`;
+          ctx.font = titleF;
+          ctx.fillStyle = col.isFlow ? COLORS.gold : COLORS.inkGreen;
+          ctx.fillText(
+            doc.fitText(col.title, dataColW - 16, titleF),
+            centerX,
+            ry + (col.sub ? 21 : row.h / 2)
+          );
+          if (col.sub) {
+            const subF = `500 14px ${FONT_SANS}`;
+            ctx.font = subF;
+            ctx.fillStyle = col.isDay ? COLORS.vermilion : COLORS.gold;
+            ctx.fillText(doc.fitText(col.sub, dataColW - 16, subF), centerX, ry + 45);
+          }
+        } else if (rIdx === 1) {
+          ctx.textBaseline = 'middle';
+          ctx.font = `600 17px ${FONT_SANS}`;
+          ctx.fillStyle = col.isDay ? COLORS.vermilion : COLORS.pine;
+          ctx.fillText(col.tenStar, centerX, ry + row.h / 2);
+        } else if (rIdx === 2) {
+          ctx.textBaseline = 'middle';
+          ctx.font = `700 36px ${FONT_SERIF}`;
+          ctx.fillStyle = ELEMENT_HEX[col.stemEl];
+          ctx.fillText(col.stem, centerX, ry + 30);
+          ctx.fillStyle = ELEMENT_HEX[col.branchEl];
+          ctx.fillText(col.branch, centerX, ry + 74);
+        } else if (rIdx === 3) {
+          ctx.font = hiddenFont;
+          ctx.fillStyle = COLORS.textBody;
+          ctx.textBaseline = 'top';
+          let ly = ry + 11;
+          hiddenWrapped[cIdx].forEach((l) => {
+            ctx.fillText(l, centerX, ly);
+            ly += 24;
+          });
+        } else if (rIdx === 4) {
+          ctx.textBaseline = 'middle';
+          ctx.font = `600 17px ${FONT_SANS}`;
+          ctx.fillStyle = COLORS.pine;
+          ctx.fillText(col.terrain, centerX, ry + row.h / 2);
+        } else if (rIdx === 5) {
+          ctx.textBaseline = 'middle';
+          ctx.font = `400 16px ${FONT_SANS}`;
+          ctx.fillStyle = COLORS.textBody;
+          ctx.fillText(col.sound, centerX, ry + row.h / 2);
+        } else if (rIdx === 6) {
+          ctx.textBaseline = 'middle';
+          ctx.font = `500 17px ${FONT_SERIF}`;
+          ctx.fillStyle = COLORS.textMuted;
+          ctx.fillText(col.kongWang, centerX, ry + row.h / 2);
+        } else if (rIdx === 7) {
+          ctx.font = shenShaFont;
+          ctx.fillStyle = COLORS.textBody;
+          ctx.textBaseline = 'top';
+          let ly = ry + 11;
+          shenShaWrapped[cIdx].forEach((l) => {
+            ctx.fillText(l, centerX, ly);
+            ly += 24;
+          });
+        }
+        ctx.textAlign = 'left';
+      });
+
+      ry += row.h;
+    });
+
+    ctx.strokeStyle = COLORS.hairlineSoft;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < cols.length; i++) {
+      const vx = MARGIN_X + labelColW + i * dataColW;
+      ctx.beginPath();
+      ctx.moveTo(vx, doc.y);
+      ctx.lineTo(vx, doc.y + totalTableH);
+      ctx.stroke();
+    }
+    doc.resetTextState();
   }
 
   doc.y += totalTableH + 18;
 
-  // Five Elements + Decade Fortunes Strip
-  const stripH = 120;
-  doc.ensureSpace(stripH + 28);
-  doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, stripH, COLORS.white, COLORS.hairline);
-
-  ctx.textBaseline = 'top';
-  ctx.font = `600 17px ${FONT_SANS}`;
-  ctx.fillStyle = COLORS.inkGreen;
-  ctx.fillText('原局五行分佈（干支八字計數）', MARGIN_X + 22, doc.y + 16);
-
-  const elements: FiveElement[] = ['木', '火', '土', '金', '水'];
-  elements.forEach((el, idx) => {
-    const ex = MARGIN_X + 290 + idx * 145;
-    ctx.font = `700 20px ${FONT_SERIF}`;
-    ctx.fillStyle = ELEMENT_HEX[el];
-    ctx.fillText(`${el}：${bazi.elementCounts[el]}`, ex, doc.y + 14);
-  });
-
-  ctx.strokeStyle = COLORS.hairlineSoft;
-  ctx.beginPath();
-  ctx.moveTo(MARGIN_X + 20, doc.y + 52);
-  ctx.lineTo(MARGIN_X + CONTENT_W - 20, doc.y + 52);
-  ctx.stroke();
-
-  ctx.font = `600 16px ${FONT_SANS}`;
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText('大運序列：', MARGIN_X + 22, doc.y + 72);
-
+  // Five Elements + Decade Fortunes Strip (acquire fresh ctx AFTER ensureSpace!)
   const decadeList = bazi.decadeFortunes
     .slice(0, 8)
     .map((d) => `${d.ganZhi}(${d.startAge}歲)`)
     .join('  →  ');
-  ctx.font = `500 17px ${FONT_SANS}`;
-  ctx.fillStyle = COLORS.textBody;
-  ctx.fillText(decadeList, MARGIN_X + 112, doc.y + 71);
+  const decadeFont = `500 17px ${FONT_SANS}`;
+  const decadeLines = doc.wrapText(decadeList, CONTENT_W - 150, decadeFont);
+  const stripH = 66 + decadeLines.length * 26 + 20;
+
+  doc.ensureSpace(stripH + 28);
+  doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, stripH, COLORS.white, COLORS.hairline);
+
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+
+    ctx.font = `600 17px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.inkGreen;
+    ctx.fillText('原局五行分佈（干支八字計數）', MARGIN_X + 22, doc.y + 18);
+
+    const elements: FiveElement[] = ['木', '火', '土', '金', '水'];
+    elements.forEach((el, idx) => {
+      const ex = MARGIN_X + 340 + idx * 175;
+      ctx.font = `700 20px ${FONT_SERIF}`;
+      ctx.fillStyle = ELEMENT_HEX[el];
+      ctx.fillText(`${el}：${bazi.elementCounts[el]}`, ex, doc.y + 15);
+    });
+
+    ctx.strokeStyle = COLORS.hairlineSoft;
+    ctx.beginPath();
+    ctx.moveTo(MARGIN_X + 20, doc.y + 54);
+    ctx.lineTo(MARGIN_X + CONTENT_W - 20, doc.y + 54);
+    ctx.stroke();
+
+    ctx.font = `600 16.5px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText('大運序列：', MARGIN_X + 22, doc.y + 70);
+
+    ctx.font = decadeFont;
+    ctx.fillStyle = COLORS.textBody;
+    let dy = doc.y + 70;
+    decadeLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 122, dy);
+      dy += 26;
+    });
+  }
 
   doc.y += stripH + 34;
 }
@@ -885,6 +1009,11 @@ function renderTarotSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInp
 
   const gap = 20;
   const cardW = (CONTENT_W - gap) / 2;
+  const innerW = cardW - 40;
+  const titleFont = `700 20.5px ${FONT_SERIF}`;
+  const subFont = `500 15.5px ${FONT_SANS}`;
+  const descFont = `400 16px ${FONT_SANS}`;
+
   const cardDefs = [
     {
       role: '人格牌（Personality Card）',
@@ -927,76 +1056,136 @@ function renderTarotSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInp
       sub: `週期：${tarot.currentYearCard.periodStart} 至 ${tarot.currentYearCard.periodEnd}（下次切換 ${tarot.nextSwitchDate}）`,
       desc: tarot.currentYearCard.card.essence,
     },
-  ];
+  ].map((def) => {
+    const tLines = doc.wrapText(def.title, innerW, titleFont);
+    const subLines = doc.wrapText(def.sub, innerW, subFont);
+    const descLines = doc.wrapText(def.desc, innerW, descFont).slice(0, 4);
+    const neededH =
+      18 +
+      26 +
+      tLines.length * 29 +
+      8 +
+      subLines.length * 23 +
+      10 +
+      descLines.length * 24 +
+      20;
+    return { ...def, tLines, subLines, descLines, neededH };
+  });
 
-  const cardH = 178;
   for (let row = 0; row < 2; row++) {
-    doc.ensureSpace(cardH + 20);
-    for (let col = 0; col < 2; col++) {
-      const def = cardDefs[row * 2 + col];
+    const leftCard = cardDefs[row * 2];
+    const rightCard = cardDefs[row * 2 + 1];
+    const rowCardH = Math.max(leftCard.neededH, rightCard.neededH, 178);
+
+    doc.ensureSpace(rowCardH + 20);
+    const ctx = doc.ctx;
+    doc.resetTextState();
+
+    [leftCard, rightCard].forEach((def, col) => {
       const cx = MARGIN_X + col * (cardW + gap);
       const cy = doc.y;
-      doc.drawCardBox(cx, cy, cardW, cardH, COLORS.white, COLORS.hairline);
+      doc.drawCardBox(cx, cy, cardW, rowCardH, COLORS.white, COLORS.hairline);
 
-      const ctx = doc.ctx;
-      ctx.textBaseline = 'top';
+      let ly = cy + 18;
       ctx.font = `600 15.5px ${FONT_SANS}`;
       ctx.fillStyle = def.accent;
-      ctx.fillText(def.role, cx + 20, cy + 16);
+      ctx.fillText(def.role, cx + 20, ly);
+      ly += 26;
 
-      ctx.font = `700 21px ${FONT_SERIF}`;
+      ctx.font = titleFont;
       ctx.fillStyle = COLORS.inkGreen;
-      const tLines = doc.wrapText(def.title, cardW - 40, `700 21px ${FONT_SERIF}`);
-      ctx.fillText(tLines[0] ?? '', cx + 20, cy + 42);
-
-      ctx.font = `500 15.5px ${FONT_SANS}`;
-      ctx.fillStyle = COLORS.textMuted;
-      const subLines = doc.wrapText(def.sub, cardW - 40, `500 15.5px ${FONT_SANS}`);
-      ctx.fillText(subLines[0] ?? '', cx + 20, cy + 74);
-
-      ctx.font = `400 16px ${FONT_SANS}`;
-      ctx.fillStyle = COLORS.textBody;
-      const descLines = doc.wrapText(def.desc, cardW - 40, `400 16px ${FONT_SANS}`);
-      let dy = cy + 104;
-      descLines.slice(0, 3).forEach((l) => {
-        ctx.fillText(l, cx + 20, dy);
-        dy += 22;
+      def.tLines.forEach((l) => {
+        ctx.fillText(l, cx + 20, ly);
+        ly += 29;
       });
-    }
-    doc.y += cardH + 18;
+      ly += 8;
+
+      ctx.font = subFont;
+      ctx.fillStyle = COLORS.textMuted;
+      def.subLines.forEach((l) => {
+        ctx.fillText(l, cx + 20, ly);
+        ly += 23;
+      });
+      ly += 10;
+
+      ctx.font = descFont;
+      ctx.fillStyle = COLORS.textBody;
+      def.descLines.forEach((l) => {
+        ctx.fillText(l, cx + 20, ly);
+        ly += 24;
+      });
+    });
+
+    doc.y += rowCardH + 18;
   }
 
   // 5-Year Tarot Trajectory Bar
-  const trajH = 82;
+  const trajH = 88;
   doc.ensureSpace(trajH + 30);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, trajH, COLORS.white, COLORS.hairline);
-  const tColW = CONTENT_W / tarot.yearTrajectory.length;
-  tarot.yearTrajectory.forEach((entry, idx) => {
-    const tx = MARGIN_X + idx * tColW;
-    if (entry.isCurrent) {
-      doc.ctx.fillStyle = '#FAF4E8';
-      doc.ctx.fillRect(tx + 1, doc.y + 1, tColW - 2, trajH - 2);
-    }
-    if (idx > 0) {
-      doc.ctx.strokeStyle = COLORS.hairlineSoft;
-      doc.ctx.beginPath();
-      doc.ctx.moveTo(tx, doc.y + 12);
-      doc.ctx.lineTo(tx, doc.y + trajH - 12);
-      doc.ctx.stroke();
-    }
-    doc.ctx.textAlign = 'center';
-    doc.ctx.textBaseline = 'top';
-    doc.ctx.font = `500 15px ${FONT_MONO}`;
-    doc.ctx.fillStyle = entry.isCurrent ? COLORS.gold : COLORS.textMuted;
-    doc.ctx.fillText(`${entry.cycleYear}${entry.isCurrent ? ' (當期)' : ''}`, tx + tColW / 2, doc.y + 14);
 
-    doc.ctx.font = `700 20px ${FONT_SERIF}`;
-    doc.ctx.fillStyle = COLORS.inkGreen;
-    doc.ctx.fillText(`${entry.card.displayNumber} ${entry.card.name}`, tx + tColW / 2, doc.y + 42);
-    doc.ctx.textAlign = 'left';
-  });
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    const tColW = CONTENT_W / tarot.yearTrajectory.length;
+    tarot.yearTrajectory.forEach((entry, idx) => {
+      const tx = MARGIN_X + idx * tColW;
+      if (entry.isCurrent) {
+        ctx.fillStyle = '#FAF4E8';
+        ctx.fillRect(tx + 1, doc.y + 1, tColW - 2, trajH - 2);
+      }
+      if (idx > 0) {
+        ctx.strokeStyle = COLORS.hairlineSoft;
+        ctx.beginPath();
+        ctx.moveTo(tx, doc.y + 12);
+        ctx.lineTo(tx, doc.y + trajH - 12);
+        ctx.stroke();
+      }
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = `500 15px ${FONT_MONO}`;
+      ctx.fillStyle = entry.isCurrent ? COLORS.gold : COLORS.textMuted;
+      ctx.fillText(`${entry.cycleYear}${entry.isCurrent ? ' (當期)' : ''}`, tx + tColW / 2, doc.y + 16);
+
+      const cardFont = `700 19.5px ${FONT_SERIF}`;
+      ctx.font = cardFont;
+      ctx.fillStyle = COLORS.inkGreen;
+      ctx.fillText(
+        doc.fitText(`${entry.card.displayNumber} ${entry.card.name}`, tColW - 18, cardFont),
+        tx + tColW / 2,
+        doc.y + 46
+      );
+      ctx.textAlign = 'left';
+    });
+    doc.resetTextState();
+  }
 
   doc.y += trajH + 34;
+}
+
+function drawLabelWithHalo(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  color: string,
+  font: string,
+  align: CanvasTextAlign = 'center'
+) {
+  ctx.save();
+  ctx.font = font;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'top';
+  const tw = ctx.measureText(text).width;
+  const padX = 5;
+  const padY = 2;
+  const boxX =
+    align === 'center' ? x - tw / 2 - padX : align === 'right' ? x - tw - padX : x - padX;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  ctx.fillRect(boxX, y - padY, tw + padX * 2, 20 + padY * 2);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+  ctx.restore();
 }
 
 function renderTenYearTrendSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) {
@@ -1007,181 +1196,222 @@ function renderTenYearTrendSection(doc: EditorialCanvasDoc, input: HolisticPdfEx
   );
 
   // Canvas2D high-DPI Line Chart
-  const chartBoxH = 380;
+  const chartBoxH = 404;
   doc.ensureSpace(chartBoxH + 24);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, chartBoxH, COLORS.white, COLORS.hairline);
 
-  const ctx = doc.ctx;
-  const padL = 78;
-  const padR = 46;
-  const padT = 56;
-  const padB = 64;
-  const plotX = MARGIN_X + padL;
-  const plotY = doc.y + padT;
-  const plotW = CONTENT_W - padL - padR;
-  const plotH = chartBoxH - padT - padB;
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    const padL = 78;
+    const padR = 52;
+    const padT = 66;
+    const padB = 72;
+    const plotX = MARGIN_X + padL;
+    const plotY = doc.y + padT;
+    const plotW = CONTENT_W - padL - padR;
+    const plotH = chartBoxH - padT - padB;
 
-  const xOf = (year: number) =>
-    plotX + ((year - trend.startYear) / Math.max(1, trend.endYear - trend.startYear)) * plotW;
-  const yOf = (score: number) => plotY + ((100 - score) / 80) * plotH;
+    const xOf = (year: number) =>
+      plotX + ((year - trend.startYear) / Math.max(1, trend.endYear - trend.startYear)) * plotW;
+    const yOf = (score: number) => plotY + ((100 - score) / 80) * plotH;
 
-  // Gridlines & Y labels
-  [20, 40, 60, 80, 100].forEach((val) => {
-    const gy = yOf(val);
-    ctx.strokeStyle = val === 60 ? '#CFC7B5' : COLORS.hairlineSoft;
-    ctx.lineWidth = val === 60 ? 1.5 : 1;
-    ctx.setLineDash(val === 60 ? [6, 6] : []);
-    ctx.beginPath();
-    ctx.moveTo(plotX, gy);
-    ctx.lineTo(plotX + plotW, gy);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'right';
-    ctx.font = `400 15px ${FONT_MONO}`;
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(String(val), plotX - 14, gy);
-  });
-  ctx.textAlign = 'left';
-
-  // Legend top right
-  ctx.textBaseline = 'top';
-  ctx.font = `500 15px ${FONT_SANS}`;
-  ctx.fillStyle = COLORS.textMuted;
-  ctx.fillText(
-    '實線：全息綜合指數（0–100）  ·  菱形：換大運／大限  ·  綠環：高峰  ·  紅環：築底  ·  金環：轉折',
-    plotX,
-    doc.y + 18
-  );
-
-  // Decade shift vertical dashed rules
-  trend.points
-    .filter((p) => p.turningPoint?.kind === 'decade_shift')
-    .forEach((p) => {
-      const sx = xOf(p.year);
-      ctx.strokeStyle = COLORS.goldLight;
-      ctx.lineWidth = 1.6;
-      ctx.setLineDash([5, 5]);
+    // Gridlines & Y labels
+    [20, 40, 60, 80, 100].forEach((val) => {
+      const gy = yOf(val);
+      ctx.strokeStyle = val === 60 ? '#CFC7B5' : COLORS.hairlineSoft;
+      ctx.lineWidth = val === 60 ? 1.5 : 1;
+      ctx.setLineDash(val === 60 ? [6, 6] : []);
       ctx.beginPath();
-      ctx.moveTo(sx, plotY - 8);
-      ctx.lineTo(sx, plotY + plotH);
+      ctx.moveTo(plotX, gy);
+      ctx.lineTo(plotX + plotW, gy);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'right';
+      ctx.font = `400 15px ${FONT_MONO}`;
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(String(val), plotX - 14, gy);
     });
+    doc.resetTextState();
 
-  // Soft Area Fill
-  const areaGrad = ctx.createLinearGradient(0, plotY, 0, plotY + plotH);
-  areaGrad.addColorStop(0, 'rgba(43, 91, 76, 0.16)');
-  areaGrad.addColorStop(1, 'rgba(250, 248, 243, 0)');
-  ctx.beginPath();
-  trend.points.forEach((p, idx) => {
-    const px = xOf(p.year);
-    const py = yOf(p.compositeScore);
-    if (idx === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  });
-  ctx.lineTo(xOf(trend.endYear), plotY + plotH);
-  ctx.lineTo(xOf(trend.startYear), plotY + plotH);
-  ctx.closePath();
-  ctx.fillStyle = areaGrad;
-  ctx.fill();
+    // Legend top
+    ctx.font = `500 15px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(
+      '實線：全息綜合指數（0–100）  ·  菱形：換大運／大限  ·  綠環：高峰  ·  紅環：築底  ·  金環：轉折',
+      plotX,
+      doc.y + 18
+    );
 
-  // Primary Line
-  ctx.beginPath();
-  trend.points.forEach((p, idx) => {
-    const px = xOf(p.year);
-    const py = yOf(p.compositeScore);
-    if (idx === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  });
-  ctx.strokeStyle = COLORS.inkGreen;
-  ctx.lineWidth = 3.2;
-  ctx.stroke();
+    // Decade shift vertical dashed rules
+    trend.points
+      .filter((p) => p.turningPoint?.kind === 'decade_shift')
+      .forEach((p) => {
+        const sx = xOf(p.year);
+        ctx.strokeStyle = COLORS.goldLight;
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(sx, plotY - 8);
+        ctx.lineTo(sx, plotY + plotH);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
 
-  // X Labels + Nodes + Turning Point Callouts
-  trend.points.forEach((p, idx) => {
-    const px = xOf(p.year);
-    const py = yOf(p.compositeScore);
+    // Soft Area Fill
+    const areaGrad = ctx.createLinearGradient(0, plotY, 0, plotY + plotH);
+    areaGrad.addColorStop(0, 'rgba(43, 91, 76, 0.16)');
+    areaGrad.addColorStop(1, 'rgba(250, 248, 243, 0)');
+    ctx.beginPath();
+    trend.points.forEach((p, idx) => {
+      const px = xOf(p.year);
+      const py = yOf(p.compositeScore);
+      if (idx === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.lineTo(xOf(trend.endYear), plotY + plotH);
+    ctx.lineTo(xOf(trend.startYear), plotY + plotH);
+    ctx.closePath();
+    ctx.fillStyle = areaGrad;
+    ctx.fill();
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.font = `600 16px ${FONT_MONO}`;
-    ctx.fillStyle = COLORS.inkGreen;
-    ctx.fillText(String(p.year), px, plotY + plotH + 12);
+    // Primary Line
+    ctx.beginPath();
+    trend.points.forEach((p, idx) => {
+      const px = xOf(p.year);
+      const py = yOf(p.compositeScore);
+      if (idx === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = COLORS.inkGreen;
+    ctx.lineWidth = 3.2;
+    ctx.stroke();
 
-    ctx.font = `400 14.5px ${FONT_SANS}`;
-    ctx.fillStyle = p.turningPoint ? COLORS.gold : COLORS.textMuted;
-    ctx.fillText(p.ganZhi, px, plotY + plotH + 34);
+    // Track placed label bounding boxes to avoid any callout text collisions
+    const placedBoxes: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    const calloutFont = `600 14.5px ${FONT_SANS}`;
 
-    if (p.turningPoint) {
-      const tpColor =
-        p.turningPoint.kind === 'decade_shift'
-          ? COLORS.gold
-          : p.turningPoint.kind === 'peak'
-            ? COLORS.green
-            : p.turningPoint.kind === 'trough'
-              ? COLORS.vermilion
-              : '#B45309';
+    // X Labels + Nodes + Turning Point Callouts
+    trend.points.forEach((p, idx) => {
+      const px = xOf(p.year);
+      const py = yOf(p.compositeScore);
 
-      if (p.turningPoint.kind === 'decade_shift') {
-        ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = tpColor;
-        ctx.fillRect(-7, -7, 14, 14);
-        ctx.strokeStyle = COLORS.white;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-7, -7, 14, 14);
-        ctx.restore();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = `600 16px ${FONT_MONO}`;
+      ctx.fillStyle = COLORS.inkGreen;
+      ctx.fillText(String(p.year), px, plotY + plotH + 14);
+
+      ctx.font = `400 14.5px ${FONT_SANS}`;
+      ctx.fillStyle = p.turningPoint ? COLORS.gold : COLORS.textMuted;
+      ctx.fillText(p.ganZhi, px, plotY + plotH + 38);
+
+      if (p.turningPoint) {
+        const tpColor =
+          p.turningPoint.kind === 'decade_shift'
+            ? COLORS.gold
+            : p.turningPoint.kind === 'peak'
+              ? COLORS.green
+              : p.turningPoint.kind === 'trough'
+                ? COLORS.vermilion
+                : '#B45309';
+
+        if (p.turningPoint.kind === 'decade_shift') {
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(Math.PI / 4);
+          ctx.fillStyle = tpColor;
+          ctx.fillRect(-7, -7, 14, 14);
+          ctx.strokeStyle = COLORS.white;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(-7, -7, 14, 14);
+          ctx.restore();
+        } else {
+          ctx.beginPath();
+          ctx.arc(px, py, 8, 0, Math.PI * 2);
+          ctx.fillStyle = COLORS.white;
+          ctx.fill();
+          ctx.strokeStyle = tpColor;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+
+        const labelText = `${p.turningPoint.shortTag} ${p.compositeScore}`;
+        ctx.font = calloutFont;
+        const lw = ctx.measureText(labelText).width + 12;
+        const lh = 22;
+        const align: CanvasTextAlign =
+          idx === 0 ? 'left' : idx === trend.points.length - 1 ? 'right' : 'center';
+        const x1 = align === 'left' ? px - 4 : align === 'right' ? px - lw + 4 : px - lw / 2;
+        const x2 = x1 + lw;
+
+        const preferBelow = p.turningPoint.kind === 'trough' || py < plotY + 40;
+        const candidateYs = preferBelow
+          ? [py + 14, py - 32, py + 38, py - 56]
+          : [py - 32, py + 14, py - 56, py + 38];
+
+        let chosenY = candidateYs[0];
+        for (const cy of candidateYs) {
+          const clampedY = Math.max(plotY - 14, Math.min(plotY + plotH - lh - 4, cy));
+          const overlaps = placedBoxes.some(
+            (b) => x1 < b.x2 + 4 && x2 + 4 > b.x1 && clampedY < b.y2 + 3 && clampedY + lh + 3 > b.y1
+          );
+          chosenY = clampedY;
+          if (!overlaps) break;
+        }
+        placedBoxes.push({ x1, y1: chosenY, x2, y2: chosenY + lh });
+        drawLabelWithHalo(ctx, labelText, px, chosenY, tpColor, calloutFont, align);
       } else {
         ctx.beginPath();
-        ctx.arc(px, py, 8, 0, Math.PI * 2);
-        ctx.fillStyle = COLORS.white;
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS.paper;
         ctx.fill();
-        ctx.strokeStyle = tpColor;
-        ctx.lineWidth = 3;
+        ctx.strokeStyle = COLORS.inkGreen;
+        ctx.lineWidth = 2.2;
         ctx.stroke();
       }
-
-      const preferBelow = p.turningPoint.kind === 'trough' || py < plotY + 34;
-      ctx.font = `600 15px ${FONT_SANS}`;
-      ctx.fillStyle = tpColor;
-      ctx.textAlign = idx === 0 ? 'left' : idx === trend.points.length - 1 ? 'right' : 'center';
-      ctx.fillText(
-        `${p.turningPoint.shortTag} ${p.compositeScore}`,
-        px,
-        preferBelow ? py + 14 : py - 28
-      );
-    } else {
-      ctx.beginPath();
-      ctx.arc(px, py, 5, 0, Math.PI * 2);
-      ctx.fillStyle = COLORS.paper;
-      ctx.fill();
-      ctx.strokeStyle = COLORS.inkGreen;
-      ctx.lineWidth = 2.2;
-      ctx.stroke();
-    }
-    ctx.textAlign = 'left';
-  });
+      ctx.textAlign = 'left';
+    });
+    doc.resetTextState();
+  }
 
   doc.y += chartBoxH + 18;
 
-  // Turning Points Summary List
+  // Turning Points Summary List (rendered row-by-row with fresh ctx AFTER ensureSpace!)
   if (trend.turningPoints.length > 0) {
+    const leftColW = 248;
+    const rightX = MARGIN_X + leftColW + 24;
+    const rightW = CONTENT_W - leftColW - 44;
+    const tagFont = `600 15.5px ${FONT_SANS}`;
     const rowFont = `400 16.5px ${FONT_SANS}`;
-    const wrapped = trend.turningPoints.map((pt) => ({
-      pt,
-      lines: doc.wrapText(pt.turningPoint!.reason, CONTENT_W - 290, rowFont),
-    }));
-    const listH =
-      24 + wrapped.reduce((s, w) => s + Math.max(46, w.lines.length * 24 + 18), 0);
+
+    const wrapped = trend.turningPoints.map((pt) => {
+      const tagLines = doc.wrapText(
+        `${pt.turningPoint!.label}（${pt.compositeScore}）`,
+        leftColW - 12,
+        tagFont
+      );
+      const reasonLines = doc.wrapText(pt.turningPoint!.reason, rightW, rowFont);
+      const leftH = 12 + 24 + tagLines.length * 22 + 12;
+      const rightH = 12 + reasonLines.length * 25 + 12;
+      return {
+        pt,
+        tagLines,
+        reasonLines,
+        rowH: Math.max(66, leftH, rightH),
+      };
+    });
+
+    const listH = 20 + wrapped.reduce((s, w) => s + w.rowH, 0);
     doc.ensureSpace(listH + 26);
     doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, listH, COLORS.white, COLORS.hairline);
 
-    let ry = doc.y + 12;
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let ry = doc.y + 10;
     wrapped.forEach((w, idx) => {
-      const rowH = Math.max(46, w.lines.length * 24 + 18);
       if (idx > 0) {
         ctx.strokeStyle = COLORS.hairlineSoft;
         ctx.beginPath();
@@ -1189,23 +1419,26 @@ function renderTenYearTrendSection(doc: EditorialCanvasDoc, input: HolisticPdfEx
         ctx.lineTo(MARGIN_X + CONTENT_W - 16, ry);
         ctx.stroke();
       }
-      ctx.textBaseline = 'top';
       ctx.font = `700 17px ${FONT_MONO}`;
       ctx.fillStyle = COLORS.inkGreen;
-      ctx.fillText(`${w.pt.year} ${w.pt.ganZhi}`, MARGIN_X + 20, ry + 10);
+      ctx.fillText(`${w.pt.year} ${w.pt.ganZhi}`, MARGIN_X + 20, ry + 12);
 
-      ctx.font = `600 15.5px ${FONT_SANS}`;
+      ctx.font = tagFont;
       ctx.fillStyle = COLORS.gold;
-      ctx.fillText(`${w.pt.turningPoint!.label}（${w.pt.compositeScore}）`, MARGIN_X + 20, ry + 32);
+      let ty = ry + 38;
+      w.tagLines.forEach((tl) => {
+        ctx.fillText(tl, MARGIN_X + 20, ty);
+        ty += 22;
+      });
 
       ctx.font = rowFont;
       ctx.fillStyle = COLORS.textBody;
-      let ly = ry + 10;
-      w.lines.forEach((l) => {
-        ctx.fillText(l, MARGIN_X + 265, ly);
-        ly += 24;
+      let ly = ry + 12;
+      w.reasonLines.forEach((l) => {
+        ctx.fillText(l, rightX, ly);
+        ly += 25;
       });
-      ry += rowH;
+      ry += w.rowH;
     });
 
     doc.y += listH + 30;
@@ -1219,16 +1452,42 @@ function renderUpcomingAlertsSection(doc: EditorialCanvasDoc, input: HolisticPdf
     `監測區間 ${alerts.baseDate} 至 ${alerts.endDate} · 流年轉折底盤：${alerts.annualContextTitle}`
   );
 
-  const ctx = doc.ctx;
+  const leftColW = 264;
+  const rightX = MARGIN_X + leftColW + 24;
+  const rightW = CONTENT_W - leftColW - 44;
+
+  const dateFont = `700 17.5px ${FONT_MONO}`;
+  const sigFont = `600 15.5px ${FONT_SANS}`;
+  const gzFont = `400 14.5px ${FONT_SANS}`;
+  const titleFont = `700 19px ${FONT_SERIF}`;
   const bodyFont = `400 16.5px ${FONT_SANS}`;
 
   alerts.items.forEach((item) => {
-    const sumLines = doc.wrapText(item.summary, CONTENT_W - 260, bodyFont);
-    const tipLines = doc.wrapText(`應對提示：${item.actionTip}`, CONTENT_W - 260, bodyFont);
-    const cardH = 44 + (sumLines.length + tipLines.length) * 24 + 26;
+    const dateText = `${item.date}${item.exactTime ? ` ${item.exactTime}` : ''}`;
+    const sigLines = doc.wrapText(`${item.countdownLabel} · ${item.signalLabel}`, leftColW - 12, sigFont);
+    const gzLines = doc.wrapText(item.ganZhiTag, leftColW - 12, gzFont);
+    const leftH = 18 + 28 + sigLines.length * 22 + 6 + gzLines.length * 21 + 18;
 
+    const titleLines = doc.wrapText(item.title, rightW, titleFont);
+    const sumLines = doc.wrapText(item.summary, rightW, bodyFont);
+    const tipLines = doc.wrapText(`應對提示：${item.actionTip}`, rightW, bodyFont);
+    const rightH =
+      18 +
+      titleLines.length * 27 +
+      8 +
+      sumLines.length * 25 +
+      6 +
+      tipLines.length * 25 +
+      18;
+
+    const cardH = Math.max(leftH, rightH, 108);
+
+    // CRITICAL: acquire ctx strictly AFTER ensureSpace!
     doc.ensureSpace(cardH + 14);
     doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, cardH, COLORS.white, COLORS.hairline);
+
+    const ctx = doc.ctx;
+    doc.resetTextState();
 
     const accent =
       item.kind === 'caution'
@@ -1239,38 +1498,58 @@ function renderUpcomingAlertsSection(doc: EditorialCanvasDoc, input: HolisticPdf
             ? COLORS.gold
             : COLORS.slateBlue;
 
-    ctx.textBaseline = 'top';
-    ctx.font = `700 18px ${FONT_MONO}`;
-    ctx.fillStyle = COLORS.inkGreen;
-    ctx.fillText(
-      `${item.date}${item.exactTime ? ` ${item.exactTime}` : ''}`,
-      MARGIN_X + 20,
-      doc.y + 18
-    );
+    // Subtle vertical divider between date column and content column
+    ctx.strokeStyle = COLORS.hairlineSoft;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(MARGIN_X + leftColW + 8, doc.y + 16);
+    ctx.lineTo(MARGIN_X + leftColW + 8, doc.y + cardH - 16);
+    ctx.stroke();
 
-    ctx.font = `600 15.5px ${FONT_SANS}`;
+    // Left column
+    let leftY = doc.y + 18;
+    ctx.font = dateFont;
+    ctx.fillStyle = COLORS.inkGreen;
+    ctx.fillText(doc.fitText(dateText, leftColW - 12, dateFont), MARGIN_X + 20, leftY);
+    leftY += 28;
+
+    ctx.font = sigFont;
     ctx.fillStyle = accent;
-    ctx.fillText(`${item.countdownLabel} · ${item.signalLabel}`, MARGIN_X + 20, doc.y + 46);
+    sigLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 20, leftY);
+      leftY += 22;
+    });
+    leftY += 6;
 
-    ctx.font = `400 15px ${FONT_SANS}`;
+    ctx.font = gzFont;
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(item.ganZhiTag, MARGIN_X + 20, doc.y + 72);
+    gzLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 20, leftY);
+      leftY += 21;
+    });
 
-    ctx.font = `700 19px ${FONT_SERIF}`;
+    // Right column
+    let rightY = doc.y + 18;
+    ctx.font = titleFont;
     ctx.fillStyle = COLORS.inkGreen;
-    ctx.fillText(item.title, MARGIN_X + 236, doc.y + 16);
+    titleLines.forEach((l) => {
+      ctx.fillText(l, rightX, rightY);
+      rightY += 27;
+    });
+    rightY += 8;
 
-    let ly = doc.y + 46;
     ctx.font = bodyFont;
     ctx.fillStyle = COLORS.textBody;
     sumLines.forEach((l) => {
-      ctx.fillText(l, MARGIN_X + 236, ly);
-      ly += 24;
+      ctx.fillText(l, rightX, rightY);
+      rightY += 25;
     });
+    rightY += 6;
+
     ctx.fillStyle = COLORS.pine;
     tipLines.forEach((l) => {
-      ctx.fillText(l, MARGIN_X + 236, ly);
-      ly += 24;
+      ctx.fillText(l, rightX, rightY);
+      rightY += 25;
     });
 
     doc.y += cardH + 12;
@@ -1290,170 +1569,196 @@ function renderEmotionalFlowSection(doc: EditorialCanvasDoc, input: HolisticPdfE
     } · 心境最澄明 ${flow.highestEmotionMonth.monthLabel} · 最需護心 ${flow.mostCareNeededMonth.monthLabel}`
   );
 
-  const chartBoxH = 388;
+  const chartBoxH = 414;
   doc.ensureSpace(chartBoxH + 24);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, chartBoxH, COLORS.white, COLORS.hairline);
 
-  const ctx = doc.ctx;
-  const padL = 82;
-  const padR = 86;
-  const padT = 60;
-  const padB = 64;
-  const plotX = MARGIN_X + padL;
-  const plotY = doc.y + padT;
-  const plotW = CONTENT_W - padL - padR;
-  const plotH = chartBoxH - padT - padB;
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    const padL = 82;
+    const padR = 86;
+    const padT = 82;
+    const padB = 72;
+    const plotX = MARGIN_X + padL;
+    const plotY = doc.y + padT;
+    const plotW = CONTENT_W - padL - padR;
+    const plotH = chartBoxH - padT - padB;
 
-  const xOf = (m: number) => plotX + ((m - 1) / 11) * plotW;
-  const yLeft = (v: number) => plotY + ((100 - v) / 85) * plotH;
-  const yRight = (v: number) => plotY + ((50 - v) / 100) * plotH;
+    const xOf = (m: number) => plotX + ((m - 1) / 11) * plotW;
+    const yLeft = (v: number) => plotY + ((100 - v) / 85) * plotH;
+    const yRight = (v: number) => plotY + ((50 - v) / 100) * plotH;
 
-  // Axis headers
-  ctx.textBaseline = 'top';
-  ctx.font = `600 15px ${FONT_SANS}`;
-  ctx.fillStyle = COLORS.inkGreen;
-  ctx.fillText('左軸（實線）：外在運程 0–100', plotX, doc.y + 18);
+    // Axis headers
+    ctx.font = `600 15px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.inkGreen;
+    ctx.fillText('左軸（實線）：外在運程 0–100', plotX, doc.y + 18);
 
-  const rTitle = '右軸（虛線）：內在情緒心流 -50~+50';
-  ctx.fillStyle = COLORS.rose;
-  const rtw = ctx.measureText(rTitle).width;
-  ctx.fillText(rTitle, plotX + plotW - rtw, doc.y + 18);
-
-  // Horizontal gridlines aligned with Right Axis (-50, -25, 0, +25, +50)
-  [-50, -25, 0, 25, 50].forEach((val) => {
-    const gy = yRight(val);
-    ctx.strokeStyle = val === 0 ? '#CFC7B5' : COLORS.hairlineSoft;
-    ctx.lineWidth = val === 0 ? 1.5 : 1;
-    ctx.setLineDash(val === 0 ? [6, 6] : []);
-    ctx.beginPath();
-    ctx.moveTo(plotX, gy);
-    ctx.lineTo(plotX + plotW, gy);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-    ctx.font = `400 14.5px ${FONT_MONO}`;
+    const rTitle = '右軸（虛線）：內在情緒心流 -50~+50';
     ctx.fillStyle = COLORS.rose;
-    ctx.fillText(val > 0 ? `+${val}` : String(val), plotX + plotW + 12, gy);
-  });
+    const rtw = ctx.measureText(rTitle).width;
+    ctx.fillText(rTitle, plotX + plotW - rtw, doc.y + 18);
 
-  // Left axis ticks
-  [20, 40, 60, 80, 100].forEach((val) => {
-    const gy = yLeft(val);
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'right';
-    ctx.font = `400 14.5px ${FONT_MONO}`;
-    ctx.fillStyle = COLORS.pine;
-    ctx.fillText(String(val), plotX - 12, gy);
-  });
-  ctx.textAlign = 'left';
+    // Horizontal gridlines aligned with Right Axis (-50, -25, 0, +25, +50)
+    [-50, -25, 0, 25, 50].forEach((val) => {
+      const gy = yRight(val);
+      ctx.strokeStyle = val === 0 ? '#CFC7B5' : COLORS.hairlineSoft;
+      ctx.lineWidth = val === 0 ? 1.5 : 1;
+      ctx.setLineDash(val === 0 ? [6, 6] : []);
+      ctx.beginPath();
+      ctx.moveTo(plotX, gy);
+      ctx.lineTo(plotX + plotW, gy);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-  // Birthday Tarot switch vertical marker
-  const switchPt = flow.points.find((p) => p.isBirthdaySwitchMonth);
-  if (switchPt) {
-    const sx = xOf(switchPt.month);
-    ctx.strokeStyle = COLORS.goldLight;
-    ctx.lineWidth = 1.6;
-    ctx.setLineDash([5, 5]);
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.font = `400 14.5px ${FONT_MONO}`;
+      ctx.fillStyle = COLORS.rose;
+      ctx.fillText(val > 0 ? `+${val}` : String(val), plotX + plotW + 12, gy);
+    });
+
+    // Left axis ticks
+    [20, 40, 60, 80, 100].forEach((val) => {
+      const gy = yLeft(val);
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'right';
+      ctx.font = `400 14.5px ${FONT_MONO}`;
+      ctx.fillStyle = COLORS.pine;
+      ctx.fillText(String(val), plotX - 12, gy);
+    });
+    doc.resetTextState();
+
+    // Birthday Tarot switch vertical marker (clamped horizontally inside plot bounds)
+    const switchPt = flow.points.find((p) => p.isBirthdaySwitchMonth);
+    if (switchPt) {
+      const sx = xOf(switchPt.month);
+      ctx.strokeStyle = COLORS.goldLight;
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(sx, plotY - 8);
+      ctx.lineTo(sx, plotY + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const switchFont = `600 14px ${FONT_SANS}`;
+      const switchText = `生日換牌：${flow.postBirthdayCardName}`;
+      ctx.font = switchFont;
+      const sw = ctx.measureText(switchText).width;
+      const clampedX = Math.max(plotX + sw / 2, Math.min(plotX + plotW - sw / 2, sx));
+      drawLabelWithHalo(ctx, switchText, clampedX, plotY - 30, COLORS.gold, switchFont, 'center');
+    }
+
+    // Emotional Flow Area relative to 0
+    const zeroY = yRight(0);
     ctx.beginPath();
-    ctx.moveTo(sx, plotY - 8);
-    ctx.lineTo(sx, plotY + plotH);
+    flow.points.forEach((p, idx) => {
+      const px = xOf(p.month);
+      const py = yRight(p.emotionalScore);
+      if (idx === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.lineTo(xOf(12), zeroY);
+    ctx.lineTo(xOf(1), zeroY);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(157, 74, 84, 0.12)';
+    ctx.fill();
+
+    // Outer Fortune Curve (Solid Deep Ink Green)
+    ctx.beginPath();
+    flow.points.forEach((p, idx) => {
+      const px = xOf(p.month);
+      const py = yLeft(p.fortuneScore);
+      if (idx === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = COLORS.inkGreen;
+    ctx.lineWidth = 2.8;
+    ctx.stroke();
+
+    // Inner Emotional Curve (Dashed Rose-Plum)
+    ctx.beginPath();
+    ctx.setLineDash([8, 4]);
+    flow.points.forEach((p, idx) => {
+      const px = xOf(p.month);
+      const py = yRight(p.emotionalScore);
+      if (idx === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.strokeStyle = COLORS.rose;
+    ctx.lineWidth = 2.8;
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.font = `600 14px ${FONT_SANS}`;
-    ctx.fillStyle = COLORS.gold;
-    ctx.fillText(`生日換牌：${flow.postBirthdayCardName}`, sx, plotY - 4);
-    ctx.textAlign = 'left';
+    // Month labels + nodes + collision-safe burnout callouts
+    const burnoutPlaced: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    const burnoutFont = `600 13px ${FONT_SANS}`;
+
+    flow.points.forEach((p, idx) => {
+      const px = xOf(p.month);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = p.isTargetMonth ? `700 15.5px ${FONT_SANS}` : `500 15px ${FONT_SANS}`;
+      ctx.fillStyle = p.isTargetMonth ? COLORS.inkGreen : COLORS.textMuted;
+      ctx.fillText(p.monthLabel, px, plotY + plotH + 14);
+
+      ctx.font = `400 13.5px ${FONT_SANS}`;
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(p.baziMonthGanZhi, px, plotY + plotH + 38);
+
+      // Outer node
+      ctx.beginPath();
+      ctx.arc(px, yLeft(p.fortuneScore), 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = COLORS.white;
+      ctx.fill();
+      ctx.strokeStyle = COLORS.inkGreen;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Inner node
+      const ey = yRight(p.emotionalScore);
+      const isBurnout = p.resonanceKind === 'outer_high_inner_low';
+      ctx.beginPath();
+      ctx.arc(px, ey, isBurnout ? 6 : 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = isBurnout ? COLORS.rose : COLORS.white;
+      ctx.fill();
+      ctx.strokeStyle = COLORS.rose;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      if (isBurnout) {
+        const align: CanvasTextAlign =
+          idx === 0 ? 'left' : idx === flow.points.length - 1 ? 'right' : 'center';
+        const bw = 54;
+        const bh = 20;
+        const x1 = align === 'left' ? px - 4 : align === 'right' ? px - bw + 4 : px - bw / 2;
+        const x2 = x1 + bw;
+        const nearBottom = ey > plotY + plotH - 32;
+        const candidates = nearBottom
+          ? [ey - 28, ey - 50, ey + 10]
+          : [ey + 12, ey - 28, ey + 34];
+
+        let chosenY = candidates[0];
+        for (const cy of candidates) {
+          const clampedY = Math.max(plotY + 2, Math.min(plotY + plotH - bh - 4, cy));
+          const overlaps = burnoutPlaced.some(
+            (b) => x1 < b.x2 + 2 && x2 + 2 > b.x1 && clampedY < b.y2 + 2 && clampedY + bh + 2 > b.y1
+          );
+          chosenY = clampedY;
+          if (!overlaps) break;
+        }
+        burnoutPlaced.push({ x1, y1: chosenY, x2, y2: chosenY + bh });
+        drawLabelWithHalo(ctx, '宜喘息', px, chosenY, COLORS.rose, burnoutFont, align);
+      }
+      ctx.textAlign = 'left';
+    });
+    doc.resetTextState();
   }
-
-  // Emotional Flow Area relative to 0
-  const zeroY = yRight(0);
-  ctx.beginPath();
-  flow.points.forEach((p, idx) => {
-    const px = xOf(p.month);
-    const py = yRight(p.emotionalScore);
-    if (idx === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  });
-  ctx.lineTo(xOf(12), zeroY);
-  ctx.lineTo(xOf(1), zeroY);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(157, 74, 84, 0.12)';
-  ctx.fill();
-
-  // Outer Fortune Curve (Solid Deep Ink Green)
-  ctx.beginPath();
-  flow.points.forEach((p, idx) => {
-    const px = xOf(p.month);
-    const py = yLeft(p.fortuneScore);
-    if (idx === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  });
-  ctx.strokeStyle = COLORS.inkGreen;
-  ctx.lineWidth = 2.8;
-  ctx.stroke();
-
-  // Inner Emotional Curve (Dashed Rose-Plum)
-  ctx.beginPath();
-  ctx.setLineDash([8, 4]);
-  flow.points.forEach((p, idx) => {
-    const px = xOf(p.month);
-    const py = yRight(p.emotionalScore);
-    if (idx === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  });
-  ctx.strokeStyle = COLORS.rose;
-  ctx.lineWidth = 2.8;
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Month labels + nodes
-  flow.points.forEach((p) => {
-    const px = xOf(p.month);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.font = p.isTargetMonth ? `700 15.5px ${FONT_SANS}` : `500 15px ${FONT_SANS}`;
-    ctx.fillStyle = p.isTargetMonth ? COLORS.inkGreen : COLORS.textMuted;
-    ctx.fillText(p.monthLabel, px, plotY + plotH + 12);
-
-    ctx.font = `400 13.5px ${FONT_SANS}`;
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(p.baziMonthGanZhi, px, plotY + plotH + 34);
-
-    // Outer node
-    ctx.beginPath();
-    ctx.arc(px, yLeft(p.fortuneScore), 4.5, 0, Math.PI * 2);
-    ctx.fillStyle = COLORS.white;
-    ctx.fill();
-    ctx.strokeStyle = COLORS.inkGreen;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Inner node
-    const isBurnout = p.resonanceKind === 'outer_high_inner_low';
-    ctx.beginPath();
-    ctx.arc(px, yRight(p.emotionalScore), isBurnout ? 6 : 4.5, 0, Math.PI * 2);
-    ctx.fillStyle = isBurnout ? COLORS.rose : COLORS.white;
-    ctx.fill();
-    ctx.strokeStyle = COLORS.rose;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    if (isBurnout) {
-      ctx.font = `600 13px ${FONT_SANS}`;
-      ctx.fillStyle = COLORS.rose;
-      ctx.fillText('宜喘息', px, yRight(p.emotionalScore) + 10);
-    }
-    ctx.textAlign = 'left';
-  });
 
   doc.y += chartBoxH + 16;
 
-  // Empathetic Insight Card for Target Month + Burnout Care Summary
+  // Empathetic Insight Card (acquire fresh ctx AFTER ensureSpace!)
   const targetPt =
     flow.points.find((p) => p.isTargetMonth) ?? flow.mostCareNeededMonth;
   const careFont = `400 17px ${FONT_SANS}`;
@@ -1463,7 +1768,7 @@ function renderEmotionalFlowSection(doc: EditorialCanvasDoc, input: HolisticPdfE
     careFont
   );
   const tipLines = doc.wrapText(
-    `溫柔護心建議：${targetPt.selfCareTip}${
+    `狀態調整建議：${targetPt.selfCareTip}${
       flow.burnoutRiskMonths.length > 0
         ? `  ｜  全年「外順內耗」提醒月份：${flow.burnoutRiskMonths.map((m) => m.monthLabel).join('、')}。`
         : ''
@@ -1472,24 +1777,27 @@ function renderEmotionalFlowSection(doc: EditorialCanvasDoc, input: HolisticPdfE
     careFont
   );
 
-  const careBoxH = 34 + (noteLines.length + tipLines.length) * 26 + 18;
+  const careBoxH = 22 + noteLines.length * 27 + 12 + tipLines.length * 27 + 20;
   doc.ensureSpace(careBoxH + 26);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, careBoxH, COLORS.white, COLORS.hairline);
 
-  let cy = doc.y + 18;
-  ctx.textBaseline = 'top';
-  ctx.font = careFont;
-  ctx.fillStyle = COLORS.textBody;
-  noteLines.forEach((l) => {
-    ctx.fillText(l, MARGIN_X + 24, cy);
-    cy += 26;
-  });
-  cy += 8;
-  ctx.fillStyle = COLORS.rose;
-  tipLines.forEach((l) => {
-    ctx.fillText(l, MARGIN_X + 24, cy);
-    cy += 26;
-  });
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let cy = doc.y + 22;
+    ctx.font = careFont;
+    ctx.fillStyle = COLORS.textBody;
+    noteLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, cy);
+      cy += 27;
+    });
+    cy += 12;
+    ctx.fillStyle = COLORS.rose;
+    tipLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, cy);
+      cy += 27;
+    });
+  }
 
   doc.y += careBoxH + 30;
 }
@@ -1502,17 +1810,24 @@ function renderAISummarySection(doc: EditorialCanvasDoc, input: HolisticPdfExpor
   );
 
   if (!aiSummary) {
-    const emptyH = 92;
+    const emptyFont = `400 18px ${FONT_SANS}`;
+    const emptyLines = doc.wrapText(
+      '本次匯出時尚未取得 AI 解盤大綱（可能正在載入或尚未設定 API 金鑰）；其他已勾選章節皆已完整收錄。',
+      CONTENT_W - 48,
+      emptyFont
+    );
+    const emptyH = 26 + emptyLines.length * 28 + 20;
     doc.ensureSpace(emptyH + 20);
     doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, emptyH, COLORS.white, COLORS.hairline);
-    doc.ctx.textBaseline = 'middle';
-    doc.ctx.font = `400 18px ${FONT_SANS}`;
-    doc.ctx.fillStyle = COLORS.textMuted;
-    doc.ctx.fillText(
-      '本次匯出時尚未取得 AI 解盤大綱（可能正在載入或尚未設定 API 金鑰）；其他已勾選章節皆已完整收錄。',
-      MARGIN_X + 24,
-      doc.y + emptyH / 2
-    );
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    ctx.font = emptyFont;
+    ctx.fillStyle = COLORS.textMuted;
+    let ey = doc.y + 24;
+    emptyLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, ey);
+      ey += 28;
+    });
     doc.y += emptyH + 30;
     return;
   }
@@ -1537,40 +1852,41 @@ function renderAISummarySection(doc: EditorialCanvasDoc, input: HolisticPdfExpor
     }));
 
     const totalH =
-      46 +
-      hLines.length * 30 +
-      14 +
-      wrappedParas.reduce((sum, p) => sum + p.lines.length * 29 + 12, 0) +
+      22 +
+      28 +
+      hLines.length * 34 +
+      12 +
+      wrappedParas.reduce((sum, p) => sum + p.lines.length * 30 + 12, 0) +
       16;
 
     doc.ensureSpace(totalH + 20);
     doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, totalH, COLORS.white, COLORS.hairline);
 
     const ctx = doc.ctx;
-    ctx.textBaseline = 'top';
-    let ly = doc.y + 20;
+    doc.resetTextState();
+    let ly = doc.y + 22;
 
     ctx.font = `600 16px ${FONT_SANS}`;
     ctx.fillStyle = accent;
     ctx.fillText(kicker, MARGIN_X + 24, ly);
-    ly += 26;
+    ly += 28;
 
     ctx.font = headFont;
     ctx.fillStyle = COLORS.inkGreen;
     hLines.forEach((l) => {
       ctx.fillText(l, MARGIN_X + 24, ly);
-      ly += 30;
+      ly += 34;
     });
-    ly += 10;
+    ly += 12;
 
     wrappedParas.forEach((p) => {
       ctx.font = bodyFont;
       p.lines.forEach((l, idx) => {
         ctx.fillStyle = idx === 0 && p.labelColor ? p.labelColor : COLORS.textBody;
         ctx.fillText(l, MARGIN_X + 24, ly);
-        ly += 29;
+        ly += 30;
       });
-      ly += 10;
+      ly += 12;
     });
 
     doc.y += totalH + 18;
@@ -1604,8 +1920,8 @@ function renderAISummarySection(doc: EditorialCanvasDoc, input: HolisticPdfExpor
   const c2SummaryLines = doc.wrapText(c2.summary, CONTENT_W - 48, bodyFont);
   const indColW = (CONTENT_W - 48 - 18) / 2;
   const indItems = (c2.indicators ?? []).map((ind) => {
-    const lines = doc.wrapText(ind.summary, indColW - 28, indFont);
-    return { ind, lines, h: 46 + lines.length * 24 + 16 };
+    const lines = doc.wrapText(ind.summary, indColW - 32, indFont);
+    return { ind, lines, h: 48 + lines.length * 26 + 18 };
   });
 
   const indRow1H =
@@ -1620,80 +1936,94 @@ function renderAISummarySection(doc: EditorialCanvasDoc, input: HolisticPdfExpor
     (indRow1H > 0 ? indRow1H : 0) + (indRow2H > 0 ? indRow2H + 16 : 0);
 
   const c2TotalH =
-    46 +
-    c2HeadLines.length * 30 +
+    22 +
+    28 +
+    c2HeadLines.length * 34 +
     12 +
-    c2SummaryLines.length * 29 +
-    (indTotalH > 0 ? 22 + indTotalH : 0) +
+    c2SummaryLines.length * 30 +
+    (indTotalH > 0 ? 20 + indTotalH : 0) +
     24;
 
   doc.ensureSpace(c2TotalH + 20);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, c2TotalH, COLORS.white, COLORS.hairline);
 
-  let ly = doc.y + 20;
-  const ctx = doc.ctx;
-  ctx.textBaseline = 'top';
-  ctx.font = `600 16px ${FONT_SANS}`;
-  ctx.fillStyle = COLORS.gold;
-  ctx.fillText('02. 當前流年運勢與心理課題', MARGIN_X + 24, ly);
-  ly += 26;
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let ly = doc.y + 22;
 
-  ctx.font = headFont;
-  ctx.fillStyle = COLORS.inkGreen;
-  c2HeadLines.forEach((l) => {
-    ctx.fillText(l, MARGIN_X + 24, ly);
-    ly += 30;
-  });
-  ly += 10;
+    ctx.font = `600 16px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.gold;
+    ctx.fillText('02. 當前流年運勢與心理課題', MARGIN_X + 24, ly);
+    ly += 28;
 
-  ctx.font = bodyFont;
-  ctx.fillStyle = COLORS.textBody;
-  c2SummaryLines.forEach((l) => {
-    ctx.fillText(l, MARGIN_X + 24, ly);
-    ly += 29;
-  });
-  ly += 18;
-
-  indItems.forEach((item, idx) => {
-    const row = Math.floor(idx / 2);
-    const col = idx % 2;
-    const ix = MARGIN_X + 24 + col * (indColW + 18);
-    const iy = ly + (row === 0 ? 0 : indRow1H + 16);
-    const ih = row === 0 ? indRow1H : indRow2H;
-
-    doc.drawCardBox(ix, iy, indColW, ih, COLORS.paper, COLORS.hairlineSoft);
-
-    const lightColor =
-      item.ind.light === 'green'
-        ? COLORS.green
-        : item.ind.light === 'red'
-          ? COLORS.red
-          : COLORS.yellow;
-    const lightPrefix =
-      item.ind.light === 'green'
-        ? '綠燈'
-        : item.ind.light === 'red'
-          ? '紅燈'
-          : '黃燈';
-
-    ctx.font = `700 18px ${FONT_SERIF}`;
+    ctx.font = headFont;
     ctx.fillStyle = COLORS.inkGreen;
-    ctx.fillText(item.ind.domain, ix + 14, iy + 14);
-
-    const badgeText = `${lightPrefix}・${item.ind.statusLabel}`;
-    ctx.font = `600 15px ${FONT_SANS}`;
-    ctx.fillStyle = lightColor;
-    const bw = ctx.measureText(badgeText).width;
-    ctx.fillText(badgeText, ix + indColW - 14 - bw, iy + 16);
-
-    ctx.font = indFont;
-    ctx.fillStyle = COLORS.textBody;
-    let ty = iy + 44;
-    item.lines.forEach((l) => {
-      ctx.fillText(l, ix + 14, ty);
-      ty += 24;
+    c2HeadLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, ly);
+      ly += 34;
     });
-  });
+    ly += 12;
+
+    ctx.font = bodyFont;
+    ctx.fillStyle = COLORS.textBody;
+    c2SummaryLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, ly);
+      ly += 30;
+    });
+    ly += 20;
+
+    indItems.forEach((item, idx) => {
+      const row = Math.floor(idx / 2);
+      const col = idx % 2;
+      const ix = MARGIN_X + 24 + col * (indColW + 18);
+      const iy = ly + (row === 0 ? 0 : indRow1H + 16);
+      const ih = row === 0 ? indRow1H : indRow2H;
+
+      doc.drawCardBox(ix, iy, indColW, ih, COLORS.paper, COLORS.hairlineSoft);
+
+      const lightColor =
+        item.ind.light === 'green'
+          ? COLORS.green
+          : item.ind.light === 'red'
+            ? COLORS.red
+            : COLORS.yellow;
+      const lightPrefix =
+        item.ind.light === 'green'
+          ? '綠燈'
+          : item.ind.light === 'red'
+            ? '紅燈'
+            : '黃燈';
+
+      const badgeFont = `600 15px ${FONT_SANS}`;
+      const badgeText = doc.fitText(
+        `${lightPrefix}・${item.ind.statusLabel}`,
+        indColW * 0.55,
+        badgeFont
+      );
+      ctx.font = badgeFont;
+      const bw = ctx.measureText(badgeText).width;
+      ctx.fillStyle = lightColor;
+      ctx.fillText(badgeText, ix + indColW - 16 - bw, iy + 16);
+
+      const domainFont = `700 18px ${FONT_SERIF}`;
+      ctx.font = domainFont;
+      ctx.fillStyle = COLORS.inkGreen;
+      ctx.fillText(
+        doc.fitText(item.ind.domain, indColW - 44 - bw, domainFont),
+        ix + 16,
+        iy + 14
+      );
+
+      ctx.font = indFont;
+      ctx.fillStyle = COLORS.textBody;
+      let ty = iy + 48;
+      item.lines.forEach((l) => {
+        ctx.fillText(l, ix + 16, ty);
+        ty += 26;
+      });
+    });
+  }
 
   doc.y += c2TotalH + 18;
 
@@ -1744,52 +2074,70 @@ function renderCrossSystemSection(doc: EditorialCanvasDoc, input: HolisticPdfExp
   );
 
   if (!analysis) {
-    const emptyH = 88;
+    const emptyFont = `400 18px ${FONT_SANS}`;
+    const emptyLines = doc.wrapText(
+      '本次匯出時尚未取得跨體系合參結果（可於「AI 深度解盤」分頁生成後再次匯出）。',
+      CONTENT_W - 48,
+      emptyFont
+    );
+    const emptyH = 26 + emptyLines.length * 28 + 20;
     doc.ensureSpace(emptyH + 20);
     doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, emptyH, COLORS.white, COLORS.hairline);
-    doc.ctx.textBaseline = 'middle';
-    doc.ctx.font = `400 18px ${FONT_SANS}`;
-    doc.ctx.fillStyle = COLORS.textMuted;
-    doc.ctx.fillText(
-      '本次匯出時尚未取得跨體系合參結果（可於「AI 深度解盤」分頁生成後再次匯出）。',
-      MARGIN_X + 24,
-      doc.y + emptyH / 2
-    );
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    ctx.font = emptyFont;
+    ctx.fillStyle = COLORS.textMuted;
+    let ey = doc.y + 24;
+    emptyLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, ey);
+      ey += 28;
+    });
     doc.y += emptyH + 28;
     return;
   }
 
-  const ctx = doc.ctx;
   const bodyFont = `400 17.5px ${FONT_SANS}`;
   const headFont = `700 22px ${FONT_SERIF}`;
 
-  // Overall Verdict Box
+  // Overall Verdict Box (acquire fresh ctx AFTER ensureSpace!)
+  const verdictHeadLines = doc.wrapText(analysis.overallVerdict.headline, CONTENT_W - 48, headFont);
   const sumLines = doc.wrapText(analysis.overallVerdict.summary, CONTENT_W - 48, bodyFont);
-  const verdictH = 74 + sumLines.length * 27 + 22;
+  const verdictH = 22 + 28 + verdictHeadLines.length * 33 + 10 + sumLines.length * 28 + 22;
+
   doc.ensureSpace(verdictH + 18);
   doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, verdictH, COLORS.white, COLORS.hairline);
 
-  ctx.textBaseline = 'top';
-  ctx.font = `600 16px ${FONT_SANS}`;
-  ctx.fillStyle = COLORS.gold;
-  ctx.fillText(`合參定性：${analysis.overallVerdict.harmonyLabel}`, MARGIN_X + 24, doc.y + 18);
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let vy = doc.y + 22;
+    ctx.font = `600 16px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.gold;
+    ctx.fillText(`合參定性：${analysis.overallVerdict.harmonyLabel}`, MARGIN_X + 24, vy);
+    vy += 28;
 
-  ctx.font = headFont;
-  ctx.fillStyle = COLORS.inkGreen;
-  ctx.fillText(analysis.overallVerdict.headline, MARGIN_X + 24, doc.y + 44);
+    ctx.font = headFont;
+    ctx.fillStyle = COLORS.inkGreen;
+    verdictHeadLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, vy);
+      vy += 33;
+    });
+    vy += 10;
 
-  let vy = doc.y + 78;
-  ctx.font = bodyFont;
-  ctx.fillStyle = COLORS.textBody;
-  sumLines.forEach((l) => {
-    ctx.fillText(l, MARGIN_X + 24, vy);
-    vy += 27;
-  });
+    ctx.font = bodyFont;
+    ctx.fillStyle = COLORS.textBody;
+    sumLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, vy);
+      vy += 28;
+    });
+  }
   doc.y += verdictH + 16;
 
-  // Findings Cards
+  // Findings Cards (acquire fresh ctx AFTER each ensureSpace!)
+  const fTitleFont = `700 20px ${FONT_SERIF}`;
   const smallFont = `400 16.5px ${FONT_SANS}`;
   analysis.findings.forEach((f, idx) => {
+    const titleLines = doc.wrapText(f.title, CONTENT_W - 48, fTitleFont);
     const evLines = doc.wrapText(
       `紫微依據：${f.ziweiEvidence}  ｜  八字依據：${f.baziEvidence}`,
       CONTENT_W - 48,
@@ -1797,49 +2145,123 @@ function renderCrossSystemSection(doc: EditorialCanvasDoc, input: HolisticPdfExp
     );
     const synLines = doc.wrapText(f.synthesis, CONTENT_W - 48, smallFont);
     const advLines = doc.wrapText(`命理建議：${f.advice}`, CONTENT_W - 48, smallFont);
-    const fH = 66 + (evLines.length + synLines.length + advLines.length) * 24 + 26;
+    const fH =
+      20 +
+      26 +
+      titleLines.length * 29 +
+      10 +
+      evLines.length * 25 +
+      8 +
+      synLines.length * 25 +
+      8 +
+      advLines.length * 25 +
+      20;
 
     doc.ensureSpace(fH + 14);
     doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, fH, COLORS.white, COLORS.hairline);
 
+    const ctx = doc.ctx;
+    doc.resetTextState();
     const isConflict = f.type === 'conflict';
-    ctx.textBaseline = 'top';
+    let fy = doc.y + 20;
+
     ctx.font = `600 15.5px ${FONT_SANS}`;
     ctx.fillStyle = isConflict ? COLORS.vermilion : COLORS.green;
     ctx.fillText(
       `0${idx + 1}  ${isConflict ? '衝突張力點' : '互補增益點'} · ${f.domain}`,
       MARGIN_X + 24,
-      doc.y + 16
+      fy
     );
+    fy += 26;
 
-    ctx.font = `700 20px ${FONT_SERIF}`;
+    ctx.font = fTitleFont;
     ctx.fillStyle = COLORS.inkGreen;
-    ctx.fillText(f.title, MARGIN_X + 24, doc.y + 40);
+    titleLines.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, fy);
+      fy += 29;
+    });
+    fy += 10;
 
-    let fy = doc.y + 70;
     ctx.font = smallFont;
     ctx.fillStyle = COLORS.textMuted;
     evLines.forEach((l) => {
       ctx.fillText(l, MARGIN_X + 24, fy);
-      fy += 24;
+      fy += 25;
     });
-    fy += 4;
+    fy += 8;
+
     ctx.fillStyle = COLORS.textBody;
     synLines.forEach((l) => {
       ctx.fillText(l, MARGIN_X + 24, fy);
-      fy += 24;
+      fy += 25;
     });
-    fy += 4;
+    fy += 8;
+
     ctx.fillStyle = COLORS.pine;
     advLines.forEach((l) => {
       ctx.fillText(l, MARGIN_X + 24, fy);
-      fy += 24;
+      fy += 25;
     });
 
     doc.y += fH + 12;
   });
 
-  doc.y += 18;
+  // Integrated Recommendations Strip
+  if (analysis.integratedRecommendations?.length > 0) {
+    const recHeadFont = `700 18px ${FONT_SERIF}`;
+    const recBodyFont = `400 16px ${FONT_SANS}`;
+    const recItems = analysis.integratedRecommendations.map((rec, i) => {
+      const actionLines = doc.wrapText(rec.action, CONTENT_W - 48, recBodyFont);
+      const timingLines = doc.wrapText(`時機節奏：${rec.timingNote}`, CONTENT_W - 48, recBodyFont);
+      const h = 16 + 26 + actionLines.length * 24 + 4 + timingLines.length * 24 + 14;
+      return { idx: i + 1, focus: rec.focus, actionLines, timingLines, h };
+    });
+
+    const totalRecH = 44 + recItems.reduce((s, r) => s + r.h, 0) + 12;
+    doc.ensureSpace(totalRecH + 16);
+    doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, totalRecH, COLORS.white, COLORS.hairline);
+
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let ry = doc.y + 18;
+    ctx.font = `600 16px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.inkGreen;
+    ctx.fillText('跨體系整合命理建議（調候・格局・時機）', MARGIN_X + 24, ry);
+    ry += 28;
+
+    recItems.forEach((r, idx) => {
+      if (idx > 0) {
+        ctx.strokeStyle = COLORS.hairlineSoft;
+        ctx.beginPath();
+        ctx.moveTo(MARGIN_X + 24, ry);
+        ctx.lineTo(MARGIN_X + CONTENT_W - 24, ry);
+        ctx.stroke();
+      }
+      ry += 14;
+      ctx.font = recHeadFont;
+      ctx.fillStyle = COLORS.gold;
+      ctx.fillText(`0${r.idx}  ${r.focus}`, MARGIN_X + 24, ry);
+      ry += 28;
+
+      ctx.font = recBodyFont;
+      ctx.fillStyle = COLORS.textBody;
+      r.actionLines.forEach((l) => {
+        ctx.fillText(l, MARGIN_X + 24, ry);
+        ry += 24;
+      });
+      ry += 4;
+      ctx.fillStyle = COLORS.textMuted;
+      r.timingLines.forEach((l) => {
+        ctx.fillText(l, MARGIN_X + 24, ry);
+        ry += 24;
+      });
+      ry += 10;
+    });
+
+    doc.y += totalRecH + 18;
+  }
+
+  doc.y += 12;
 }
 
 function renderNotesSection(doc: EditorialCanvasDoc, notes: string) {
@@ -1848,22 +2270,37 @@ function renderNotesSection(doc: EditorialCanvasDoc, notes: string) {
 
   doc.drawSectionHeader('諮詢師備忘筆記');
   const font = `400 18px ${FONT_SANS}`;
-  const lines = doc.wrapText(trimmed, CONTENT_W - 48, font);
-  const boxH = Math.max(88, lines.length * 29 + 36);
+  const lineH = 30;
+  const allLines = doc.wrapText(trimmed, CONTENT_W - 48, font);
 
-  doc.ensureSpace(boxH + 24);
-  doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, boxH, COLORS.white, COLORS.hairline);
+  // Paginate long notes cleanly if they exceed remaining page height
+  let offset = 0;
+  while (offset < allLines.length) {
+    const availH = FOOTER_SAFE_Y - doc.y - 44;
+    let maxLinesHere = Math.floor((availH - 40) / lineH);
+    if (maxLinesHere < 2) {
+      doc.newPage(false);
+      maxLinesHere = Math.floor((FOOTER_SAFE_Y - doc.y - 84) / lineH);
+    }
+    const chunk = allLines.slice(offset, offset + Math.max(1, maxLinesHere));
+    const boxH = Math.max(88, chunk.length * lineH + 40);
 
-  let ly = doc.y + 18;
-  doc.ctx.textBaseline = 'top';
-  doc.ctx.font = font;
-  doc.ctx.fillStyle = COLORS.textBody;
-  lines.forEach((l) => {
-    doc.ctx.fillText(l, MARGIN_X + 24, ly);
-    ly += 29;
-  });
+    doc.ensureSpace(boxH + 20);
+    doc.drawCardBox(MARGIN_X, doc.y, CONTENT_W, boxH, COLORS.white, COLORS.hairline);
 
-  doc.y += boxH + 20;
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let ly = doc.y + 20;
+    ctx.font = font;
+    ctx.fillStyle = COLORS.textBody;
+    chunk.forEach((l) => {
+      ctx.fillText(l, MARGIN_X + 24, ly);
+      ly += lineH;
+    });
+
+    doc.y += boxH + 18;
+    offset += chunk.length;
+  }
 }
 
 /**
