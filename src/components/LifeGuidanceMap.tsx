@@ -10,7 +10,6 @@ import {
   BaziChartResult,
   ClientProfile,
   HoroscopeScope,
-  OperationMode,
   TarotChartResult,
   ZiweiChartResult,
 } from '../types/holistic';
@@ -25,7 +24,6 @@ interface LifeGuidanceMapProps {
   bazi: BaziChartResult;
   tarot: TarotChartResult;
   targetDate: string;
-  operationMode: OperationMode;
   onSelectTargetYear: (year: number, scope?: HoroscopeScope) => void;
 }
 
@@ -42,11 +40,8 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
   bazi,
   tarot,
   targetDate,
-  operationMode,
   onSelectTargetYear,
 }) => {
-  const isClientMode = operationMode === 'client';
-
   const guidance = useMemo(
     () => calculateLifeGuidance(client, ziwei, bazi, tarot, targetDate),
     [client, ziwei, bazi, tarot, targetDate]
@@ -64,11 +59,7 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
         <div>
           <div className="flex items-center gap-1.5 text-xs font-medium text-[#8C6830]">
             <Compass className="h-3.5 w-3.5" />
-            <span>
-              {isClientMode
-                ? '當下階段定位與今年精力配置'
-                : '實證結構地圖・十年階段定位 × 四化落點 × 八字沖合'}
-            </span>
+            <span>實證結構地圖・十年階段定位 × 四化落點 × 八字沖合</span>
           </div>
           <h2 className="mt-0.5 font-serif text-lg font-bold text-[#152924]">
             {stagePosition.targetYear} 年人生座標與行動取捨指南
@@ -105,11 +96,9 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
               {stagePosition.stageHeadline}
             </h3>
           </div>
-          {!isClientMode && (
-            <div className="font-mono text-[11px] text-[#6B7974] tabular-nums">
-              {stagePosition.technicalProof}
-            </div>
-          )}
+          <div className="font-mono text-[11px] text-[#6B7974] tabular-nums">
+            {stagePosition.technicalProof}
+          </div>
         </div>
 
         {/* 3-Chapter Timeline Rail: Prev -> Current (10-year tick bar) -> Next */}
@@ -142,7 +131,7 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
                 onClick={() =>
                   onSelectTargetYear(
                     stagePosition.prevStage!.startYear!,
-                    isClientMode ? 'yearly' : 'decadal'
+                    'decadal'
                   )
                 }
                 className="mt-2 self-start text-[11px] font-medium text-[#5D6B66] underline-offset-4 hover:text-[#152924] hover:underline whitespace-nowrap"
@@ -249,10 +238,7 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
               <button
                 type="button"
                 onClick={() =>
-                  onSelectTargetYear(
-                    stagePosition.nextShiftYear!,
-                    isClientMode ? 'yearly' : 'decadal'
-                  )
+                  onSelectTargetYear(stagePosition.nextShiftYear!, 'decadal')
                 }
                 className="mt-2 inline-flex items-center gap-1 self-start text-[11px] font-medium text-[#2B5B4C] underline-offset-4 hover:text-[#152924] hover:underline whitespace-nowrap"
               >
@@ -280,9 +266,7 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
               二、{stagePosition.targetYear} 年精力配置圖（哪裡有風、哪裡扛責、哪裡先止損）
             </div>
             <p className="mt-0.5 text-xs text-[#64736D]">
-              {isClientMode
-                ? '不打模糊分數，直接列出今年投入最有回報、必須正面面對、以及最容易白耗精力的三個區域'
-                : '嚴格依據流年四化落宮（祿權科忌＋對宮沖照）與八字流年四柱沖合生成，零虛構權重'}
+              嚴格依據流年四化落宮（祿權科忌＋對宮沖照）與八字流年四柱沖合生成，零虛構權重
             </p>
           </div>
         </div>
@@ -315,11 +299,9 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
                     <p className="mt-1 text-xs leading-[1.7] text-[#3F4E49]">
                       {item.guidance}
                     </p>
-                    {!isClientMode && (
-                      <div className="mt-1 font-mono text-[10.5px] text-[#7A8782]">
-                        依據：{item.technicalProof}
-                      </div>
-                    )}
+                    <div className="mt-1 font-mono text-[10.5px] text-[#7A8782]">
+                      依據：{item.technicalProof}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -351,11 +333,9 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
                     <p className="mt-1 text-xs leading-[1.7] text-[#3F4E49]">
                       {item.guidance}
                     </p>
-                    {!isClientMode && (
-                      <div className="mt-1 font-mono text-[10.5px] text-[#7A8782]">
-                        依據：{item.technicalProof}
-                      </div>
-                    )}
+                    <div className="mt-1 font-mono text-[10.5px] text-[#7A8782]">
+                      依據：{item.technicalProof}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -387,11 +367,9 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
                     <p className="mt-1 text-xs leading-[1.7] text-[#3F4E49]">
                       {item.guidance}
                     </p>
-                    {!isClientMode && (
-                      <div className="mt-1 font-mono text-[10.5px] text-[#7A8782]">
-                        依據：{item.technicalProof}
-                      </div>
-                    )}
+                    <div className="mt-1 font-mono text-[10.5px] text-[#7A8782]">
+                      依據：{item.technicalProof}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -407,9 +385,7 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
             三、{stagePosition.targetYear} 年四大生活圈變動掃描
           </div>
           <div className="text-[11.5px] text-[#6B7974]">
-            {isClientMode
-              ? '看今年哪個生活圈有合作助力、哪個圈子最容易出現變動'
-              : `流年「${bazi.targetFlow.yearPillar.ganZhi}」比對八字四柱之真實沖合`}
+            流年「{bazi.targetFlow.yearPillar.ganZhi}」比對八字四柱之真實沖合
           </div>
         </div>
 
@@ -441,11 +417,9 @@ export const LifeGuidanceMap: React.FC<LifeGuidanceMapProps> = ({
                     {circle.relationPlain}
                   </span>
                 </div>
-                {!isClientMode && (
-                  <div className="mt-0.5 font-mono text-[10.5px] text-[#7A8782]">
-                    {circle.pillarLabel} {circle.ganZhi} · {circle.technicalNote}
-                  </div>
-                )}
+                <div className="mt-0.5 font-mono text-[10.5px] text-[#7A8782]">
+                  {circle.pillarLabel} {circle.ganZhi} · {circle.technicalNote}
+                </div>
                 <p className="mt-1.5 text-xs leading-[1.7] text-[#4C5A55]">
                   {circle.guidance}
                 </p>

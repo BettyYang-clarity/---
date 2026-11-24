@@ -8,7 +8,6 @@ import {
   ClientProfile,
   FiveElement,
   HoroscopeScope,
-  OperationMode,
   PdfExportConfig,
   TarotChartResult,
   ZiweiChartResult,
@@ -19,6 +18,7 @@ import { TenYearFortuneChart } from './TenYearFortuneChart';
 import { UpcomingAlertsCard } from './UpcomingAlertsCard';
 import { PdfExportModal } from './PdfExportModal';
 import { LifeGuidanceMap } from './LifeGuidanceMap';
+import { BLUEPRINT_LIMITS } from '../services/firestoreClientService';
 
 interface OverviewTabProps {
   client: ClientProfile;
@@ -27,7 +27,6 @@ interface OverviewTabProps {
   tarot: TarotChartResult;
   targetDate: string;
   activeScope: HoroscopeScope;
-  operationMode: OperationMode;
   aiSummary: AIStage1Summary | null;
   crossSystemAnalysis: AICrossSystemAnalysis | null;
   onNavigateTab: (tab: ActiveTab) => void;
@@ -54,7 +53,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   tarot,
   targetDate,
   activeScope,
-  operationMode,
   aiSummary,
   crossSystemAnalysis,
   onNavigateTab,
@@ -65,7 +63,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   isExportingPdf,
   pdfFeedback,
 }) => {
-  const isClientMode = operationMode === 'client';
   const [draftNotes, setDraftNotes] = useState(client.notes);
   const [savedIndicator, setSavedIndicator] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -144,26 +141,19 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           <div>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <h1 className="font-serif text-2xl font-bold text-[#152924]">
-                {isClientMode ? `${client.name}・專屬運勢指引` : client.name}
+                {client.name}
               </h1>
-              {!isClientMode && (
-                <span className="text-sm text-[#54635E]">
-                  {client.gender}命 · {ziwei.zodiac} · {ziwei.fiveElementsClass}
-                </span>
-              )}
+              <span className="text-sm text-[#54635E]">
+                {client.gender}命 · {ziwei.zodiac} · {ziwei.fiveElementsClass}
+              </span>
             </div>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#64736D] tabular-nums">
               <span>
-                國曆 {client.birthDate} {client.birthTime}
-                {!isClientMode ? `（${ziwei.time}）` : ''}
+                國曆 {client.birthDate} {client.birthTime}（{ziwei.time}）
               </span>
-              {!isClientMode && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>農曆 {ziwei.lunarDate}</span>
-                </>
-              )}
-              {!isClientMode && client.tags.length > 0 && (
+              <span aria-hidden="true">·</span>
+              <span>農曆 {ziwei.lunarDate}</span>
+              {client.tags.length > 0 && (
                 <>
                   <span aria-hidden="true">·</span>
                   <span className="text-[#8E6F36]">{client.tags.join(' / ')}</span>
@@ -174,13 +164,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
           <div className="flex flex-col items-start gap-2 md:items-end">
             <div className="text-left md:text-right">
-              <div className="text-xs text-[#64736D]">
-                {isClientMode ? '目前檢視時間' : '當前推演座標'}
-              </div>
+              <div className="text-xs text-[#64736D]">當前推演座標</div>
               <div className="mt-0.5 font-mono text-sm font-medium text-[#152924] tabular-nums">
-                {isClientMode
-                  ? targetDate
-                  : `${targetDate} · ${SCOPE_LABELS[activeScope]}`}
+                {targetDate} · {SCOPE_LABELS[activeScope]}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -195,18 +181,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 ) : (
                   <Printer className="h-3.5 w-3.5" />
                 )}
-                {isExportingPdf
-                  ? '正在生成 PDF 報告…'
-                  : isClientMode
-                    ? '下載運勢報告 PDF'
-                    : '匯出 PDF 報告'}
+                {isExportingPdf ? '正在生成 PDF 報告…' : '匯出 PDF 報告'}
               </button>
               <button
                 type="button"
                 onClick={() => onNavigateTab('ai')}
                 className="inline-flex items-center gap-1 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] whitespace-nowrap shrink-0"
               >
-                {isClientMode ? '檢視運勢報告與 AI 提問指令' : '檢視全版 AI 深度解盤'}
+                檢視全版 AI 深度解盤
                 <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -216,199 +198,97 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
 
-        {isClientMode ? (
-          /* Client Self-Service Mode: Plain-language Energy & AI Guidance Snapshot (Zero Raw Engine Jargon) */
-          <div className="mt-4 space-y-4">
-            <div className="rounded-md border border-[#E5DEC9] bg-[#FAF8F3] px-4 py-3.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-serif text-sm font-semibold text-[#152924]">
-                  {aiSummary
-                    ? aiSummary.currentFortuneAndPsyche.headline
-                    : `${targetDate.slice(0, 4)} 年度能量與人生節律摘要`}
-                </span>
-                <span className="text-[11px] text-[#8C6830]">
-                  年度成長主題：{tarot.currentYearCard.card.name}（
-                  {tarot.currentYearCard.card.keywords.slice(0, 3).join('・')}）
-                </span>
-              </div>
-              <p className="mt-2 text-xs leading-[1.8] text-[#354540]">
-                {aiSummary
-                  ? aiSummary.currentFortuneAndPsyche.summary
-                  : tarot.currentYearCard.card.essence}
-              </p>
-              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-[#EAE3D5] pt-2.5 text-xs">
-                <span className="text-[#54635E]">
-                  內在天賦特質：{tarot.personalityCard.keywords.join(' · ')}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab('ai')}
-                  className="inline-flex items-center gap-1 font-medium text-[#2B5B4C] transition-colors hover:text-[#152924]"
-                >
-                  查看完整運勢報告與專屬 AI 提問指令
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {aiSummary?.currentFortuneAndPsyche.indicators?.length ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {aiSummary.currentFortuneAndPsyche.indicators.map((ind) => (
-                  <div
-                    key={ind.domain}
-                    className="rounded-md border border-[#ECE6DA] bg-[#FAF8F3]/70 p-3.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-serif text-sm font-semibold text-[#152924]">
-                        {ind.domain}
-                      </span>
-                      <span
-                        className={`text-[11px] font-semibold ${
-                          ind.light === 'green'
-                            ? 'text-[#1E6B4B]'
-                            : ind.light === 'red'
-                              ? 'text-[#B91C1C]'
-                              : 'text-[#925808]'
-                        }`}
-                      >
-                        {ind.statusLabel}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs leading-relaxed text-[#45534E]">
-                      {ind.summary}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="border-t border-[#EFEAE0] pt-3">
-                  <div className="text-[11px] text-[#73807B]">你的天賦優勢</div>
-                  <div className="mt-1 font-serif text-sm font-semibold text-[#152924]">
-                    {tarot.personalityCard.name}原型
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#4C5A55]">
-                    {tarot.personalityCard.lightSide}
-                  </p>
-                </div>
-                <div className="border-t border-[#EFEAE0] pt-3">
-                  <div className="text-[11px] text-[#73807B]">今年核心課題</div>
-                  <div className="mt-1 font-serif text-sm font-semibold text-[#8C6830]">
-                    {tarot.currentYearCard.card.name}週期
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#4C5A55]">
-                    {tarot.currentYearCard.card.growthLesson}
-                  </p>
-                </div>
-                <div className="border-t border-[#EFEAE0] pt-3">
-                  <div className="text-[11px] text-[#73807B]">關鍵盲點與校準</div>
-                  <div className="mt-1 font-serif text-sm font-semibold text-[#2B5B4C]">
-                    決策與節奏校準
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-[#4C5A55]">
-                    {tarot.soulCard.growthLesson}
-                  </p>
-                </div>
-              </div>
-            )}
+        {/* Live Dynamic Active-Scope Focus Banner */}
+        <div className="mt-4 rounded-md border border-[#E5DEC9] bg-[#FAF8F3] px-4 py-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="font-serif text-sm font-semibold text-[#152924]">
+              {activeScopeSummary.title}
+            </span>
+            <span className="text-[11px] text-[#8C6830]">
+              四化飛星：祿 {activeMutagenRow.lu} · 權 {activeMutagenRow.quan} · 科{' '}
+              {activeMutagenRow.ke} · 忌 {activeMutagenRow.ji}
+            </span>
           </div>
-        ) : (
-          /* Professional Consultant Mode: Active-Scope Four Mutagens Banner + 4 Technical Anchor Metrics */
-          <>
-            {/* Live Dynamic Active-Scope Focus Banner */}
-            <div className="mt-4 rounded-md border border-[#E5DEC9] bg-[#FAF8F3] px-4 py-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-serif text-sm font-semibold text-[#152924]">
-                  {activeScopeSummary.title}
-                </span>
-                <span className="text-[11px] text-[#8C6830]">
-                  四化飛星：祿 {activeMutagenRow.lu} · 權 {activeMutagenRow.quan} · 科{' '}
-                  {activeMutagenRow.ke} · 忌 {activeMutagenRow.ji}
-                </span>
-              </div>
-              <div className="mt-2 grid grid-cols-1 gap-2 text-xs leading-relaxed text-[#3F4D48] md:grid-cols-3">
-                <div>
-                  <span className="font-semibold text-[#152924]">紫微：</span>
-                  {activeScopeSummary.ziweiText}
-                </div>
-                <div>
-                  <span className="font-semibold text-[#2B5B4C]">八字：</span>
-                  {activeScopeSummary.baziText}
-                </div>
-                <div>
-                  <span className="font-semibold text-[#8C6830]">塔羅：</span>
-                  {activeScopeSummary.tarotText}
-                </div>
-              </div>
+          <div className="mt-2 grid grid-cols-1 gap-2 text-xs leading-relaxed text-[#3F4D48] md:grid-cols-3">
+            <div>
+              <span className="font-semibold text-[#152924]">紫微：</span>
+              {activeScopeSummary.ziweiText}
             </div>
-
-            {/* 4 Key Anchor Metrics — Clean Hairline Grid */}
-            <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <div className="border-r border-[#EFEAE0] pr-3 last:border-r-0">
-                <div className="text-[11px] text-[#73807B]">紫微命宮主星</div>
-                <div className="mt-1 font-serif text-[15px] font-semibold text-[#152924]">
-                  {mingPalace.majorStars.length > 0
-                    ? mingPalace.majorStars.map((s) => s.name).join('・')
-                    : '命無正曜（借對宮）'}
-                </div>
-                <div className="mt-0.5 text-xs text-[#64736D]">
-                  {mingPalace.heavenlyStem}
-                  {mingPalace.earthlyBranch}宮 · 身宮落{bodyPalace.name}
-                </div>
-              </div>
-
-              <div className="border-r border-[#EFEAE0] pr-3 lg:border-r">
-                <div className="text-[11px] text-[#73807B]">子平八字日主</div>
-                <div className="mt-1 font-serif text-[15px] font-semibold text-[#152924]">
-                  <span className={ELEMENT_COLORS[bazi.dayMaster.element]}>
-                    {bazi.dayMaster.stem}（{bazi.dayMaster.yinYang}
-                    {bazi.dayMaster.element}）
-                  </span>
-                </div>
-                <div className="mt-0.5 text-xs text-[#64736D] tabular-nums">
-                  日空亡：{bazi.dayKongWang} ·{' '}
-                  {bazi.targetFlow.activeDecade
-                    ? `大運 ${bazi.targetFlow.activeDecade.ganZhi}`
-                    : '童限期'}
-                </div>
-              </div>
-
-              <div className="border-r border-[#EFEAE0] pr-3">
-                <div className="text-[11px] text-[#73807B]">塔羅所屬家族</div>
-                <div className="mt-1 font-serif text-[15px] font-semibold text-[#8C6830]">
-                  {tarot.constellation.id} 號{tarot.constellation.name}
-                </div>
-                <div className="mt-0.5 text-xs text-[#64736D]">
-                  人格 {tarot.personalityCard.name} · 靈魂 {tarot.soulCard.name}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[11px] text-[#73807B]">個人流年塔羅</div>
-                <div className="mt-1 font-serif text-[15px] font-semibold text-[#152924]">
-                  {tarot.currentYearCard.card.displayNumber}{' '}
-                  {tarot.currentYearCard.card.name}
-                  {tarot.currentYearCard.rootCard
-                    ? ` → ${tarot.currentYearCard.rootCard.name}`
-                    : ''}
-                </div>
-                <div className="mt-0.5 font-mono text-[11px] text-[#64736D] tabular-nums">
-                  下次切換：{tarot.nextSwitchDate}
-                </div>
-              </div>
+            <div>
+              <span className="font-semibold text-[#2B5B4C]">八字：</span>
+              {activeScopeSummary.baziText}
             </div>
-          </>
-        )}
+            <div>
+              <span className="font-semibold text-[#8C6830]">塔羅：</span>
+              {activeScopeSummary.tarotText}
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Key Anchor Metrics — Clean Hairline Grid */}
+        <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="border-r border-[#EFEAE0] pr-3 last:border-r-0">
+            <div className="text-[11px] text-[#73807B]">紫微命宮主星</div>
+            <div className="mt-1 font-serif text-[15px] font-semibold text-[#152924]">
+              {mingPalace.majorStars.length > 0
+                ? mingPalace.majorStars.map((s) => s.name).join('・')
+                : '命無正曜（借對宮）'}
+            </div>
+            <div className="mt-0.5 text-xs text-[#64736D]">
+              {mingPalace.heavenlyStem}
+              {mingPalace.earthlyBranch}宮 · 身宮落{bodyPalace.name}
+            </div>
+          </div>
+
+          <div className="border-r border-[#EFEAE0] pr-3 lg:border-r">
+            <div className="text-[11px] text-[#73807B]">子平八字日主</div>
+            <div className="mt-1 font-serif text-[15px] font-semibold text-[#152924]">
+              <span className={ELEMENT_COLORS[bazi.dayMaster.element]}>
+                {bazi.dayMaster.stem}（{bazi.dayMaster.yinYang}
+                {bazi.dayMaster.element}）
+              </span>
+            </div>
+            <div className="mt-0.5 text-xs text-[#64736D] tabular-nums">
+              日空亡：{bazi.dayKongWang} ·{' '}
+              {bazi.targetFlow.activeDecade
+                ? `大運 ${bazi.targetFlow.activeDecade.ganZhi}`
+                : '童限期'}
+            </div>
+          </div>
+
+          <div className="border-r border-[#EFEAE0] pr-3">
+            <div className="text-[11px] text-[#73807B]">塔羅所屬家族</div>
+            <div className="mt-1 font-serif text-[15px] font-semibold text-[#8C6830]">
+              {tarot.constellation.id} 號{tarot.constellation.name}
+            </div>
+            <div className="mt-0.5 text-xs text-[#64736D]">
+              人格 {tarot.personalityCard.name} · 靈魂 {tarot.soulCard.name}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-[11px] text-[#73807B]">個人流年塔羅</div>
+            <div className="mt-1 font-serif text-[15px] font-semibold text-[#152924]">
+              {tarot.currentYearCard.card.displayNumber}{' '}
+              {tarot.currentYearCard.card.name}
+              {tarot.currentYearCard.rootCard
+                ? ` → ${tarot.currentYearCard.rootCard.name}`
+                : ''}
+            </div>
+            <div className="mt-0.5 font-mono text-[11px] text-[#64736D] tabular-nums">
+              下次切換：{tarot.nextSwitchDate}
+            </div>
+          </div>
+        </div>
       </section>
 
-      {/* Factual Life Stage Coordinate Axis & 3-Zone Energy Allocation Map (Zero Fake Scores) */}
+      {/* Factual Life Stage Coordinate Axis & 3-Zone Energy Allocation Map */}
       <LifeGuidanceMap
         client={client}
         ziwei={ziwei}
         bazi={bazi}
         tarot={tarot}
         targetDate={targetDate}
-        operationMode={operationMode}
         onSelectTargetYear={onSelectTargetYear}
       />
 
@@ -426,10 +306,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         onSelectTargetDate={onSelectTargetDate}
       />
 
-      {/* Three-System Raw Data Synthesis & Consultant Notes (Professional Consultant Mode Only) */}
-      {!isClientMode && (
-        <>
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+      {/* Three-System Raw Data Synthesis & Consultant Notes */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* 1. Tarot Archetype Summary */}
         <section className="rounded-lg border border-[#DDD6C7] bg-white p-5">
           <div className="flex items-center justify-between border-b border-[#ECE6DA] pb-3">
@@ -719,16 +597,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         <textarea
           rows={3}
           value={draftNotes}
+          maxLength={BLUEPRINT_LIMITS.MAX_NOTES_LENGTH}
           onChange={(e) => setDraftNotes(e.target.value)}
           onBlur={handleNotesBlurOrSave}
           placeholder="點擊此處紀錄本次解盤觀察、命主反饋或追蹤事項…"
           className="mt-2.5 w-full rounded-md border border-[#E5DEC9] bg-[#FAF8F3] px-3 py-2 text-sm leading-relaxed text-[#25332E] focus:border-[#2B5B4C] focus:bg-white focus:outline-none"
         />
       </section>
-        </>
-      )}
 
-      {/* PDF Report Structure Preview & Chapter Customization Modal */}
+      {/* PDF Report Structure Preview & Two-Edition Customization Modal */}
       <PdfExportModal
         isOpen={isPdfModalOpen}
         onClose={() => setIsPdfModalOpen(false)}
@@ -738,7 +615,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         tarot={tarot}
         targetDate={targetDate}
         activeScope={activeScope}
-        operationMode={operationMode}
         aiSummary={aiSummary}
         crossSystemAnalysis={crossSystemAnalysis}
         isExporting={isExportingPdf}

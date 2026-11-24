@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated consultant account anchor document owning private client profiles.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Optional display name for the signed-in user.",
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the account document was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last account profile update."
+        }
+      },
+      "required": ["uid", "displayName", "createdAt", "updatedAt"]
+    },
+    "ClientProfile": {
+      "title": "ClientProfile",
+      "description": "Private astrology and tarot client profile owned by a signed-in consultant.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the consultant who owns this client profile.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Client display name.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "gender": {
+          "type": "string",
+          "description": "Client gender used for classical Ziwei/Bazi chart direction.",
+          "enum": ["男", "女"],
+          "maxLength": 2
+        },
+        "birthDate": {
+          "type": "string",
+          "description": "Gregorian birth date in YYYY-MM-DD format.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "birthTime": {
+          "type": "string",
+          "description": "Birth time in HH:mm 24-hour format.",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^[0-9]{2}:[0-9]{2}$"
+        },
+        "tags": {
+          "type": "array",
+          "description": "Bounded list of up to 10 short client classification tags (max 32 chars each)."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Private consultant notes for this client.",
+          "maxLength": 10000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable server timestamp when this client profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the most recent update."
+        }
+      },
+      "required": [
+        "ownerId",
+        "name",
+        "gender",
+        "birthDate",
+        "birthTime",
+        "tags",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Private consultant root document. Only readable and writable by the authenticated verified owner."
+    },
+    "/users/{userId}/clients/{clientId}": {
+      "schema": { "$ref": "#/entities/ClientProfile" },
+      "description": "Private subcollection of client profiles and consultant notes owned by {userId}."
+    }
+  }
+}

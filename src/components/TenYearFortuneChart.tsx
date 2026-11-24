@@ -338,18 +338,20 @@ export const TenYearFortuneChart: React.FC<TenYearFortuneChartProps> = ({
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (shouldAnimate && !prefersReduced) {
-      const totalLength = primaryPath.node()?.getTotalLength() ?? 0;
-      if (totalLength > 0) {
-        primaryPath
-          .attr('stroke-dasharray', `${totalLength} ${totalLength}`)
-          .attr('stroke-dashoffset', totalLength)
-          .transition()
-          .duration(420)
-          .ease(d3.easeCubicOut)
-          .attr('stroke-dashoffset', 0)
-          .on('end', () => {
-            primaryPath.attr('stroke-dasharray', 'none');
-          });
+      const pathEl = primaryPath.node();
+      const totalLength = pathEl?.getTotalLength() ?? 0;
+      if (pathEl && totalLength > 0 && typeof pathEl.animate === 'function') {
+        pathEl.setAttribute('stroke-dasharray', `${totalLength} ${totalLength}`);
+        const anim = pathEl.animate(
+          [
+            { strokeDashoffset: totalLength },
+            { strokeDashoffset: 0 },
+          ],
+          { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        );
+        anim.onfinish = () => {
+          pathEl.setAttribute('stroke-dasharray', 'none');
+        };
       }
     }
 

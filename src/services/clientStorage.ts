@@ -15,7 +15,7 @@ export interface IClientStorageService {
 
 const STORAGE_KEY = 'holistic_life_map_clients_v1';
 
-const SEED_CLIENTS: ClientProfile[] = [
+export const SEED_CLIENTS: ClientProfile[] = [
   {
     id: 'seed-lin-qingyan',
     name: '林青硯',
@@ -49,6 +49,31 @@ function generateId(): string {
   return `client-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function normalizeClientRecord(raw: unknown): ClientProfile | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const birthDate = typeof r.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.birthDate)
+    ? r.birthDate
+    : '1990-05-15';
+  const birthTime = typeof r.birthTime === 'string' && /^\d{2}:\d{2}$/.test(r.birthTime)
+    ? r.birthTime
+    : '12:00';
+  const now = new Date().toISOString();
+  return {
+    id: typeof r.id === 'string' && r.id.trim() ? r.id : generateId(),
+    name: typeof r.name === 'string' && r.name.trim() ? r.name.trim() : '未命名命主',
+    gender: r.gender === '女' ? '女' : '男',
+    birthDate,
+    birthTime,
+    tags: Array.isArray(r.tags)
+      ? r.tags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+      : [],
+    notes: typeof r.notes === 'string' ? r.notes : '',
+    createdAt: typeof r.createdAt === 'string' ? r.createdAt : now,
+    updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : now,
+  };
+}
+
 function readRawClients(): ClientProfile[] {
   if (typeof window === 'undefined') return [...SEED_CLIENTS];
   try {
@@ -62,7 +87,13 @@ function readRawClients(): ClientProfile[] {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_CLIENTS));
       return [...SEED_CLIENTS];
     }
-    return parsed as ClientProfile[];
+    const normalized = parsed
+      .map(normalizeClientRecord)
+      .filter((c): c is ClientProfile => c !== null);
+    if (normalized.length === 0 && parsed.length > 0) {
+      return [...SEED_CLIENTS];
+    }
+    return normalized;
   } catch {
     return [...SEED_CLIENTS];
   }

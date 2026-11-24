@@ -7,6 +7,7 @@ import {
   FiveElement,
   HoroscopeScope,
   PdfExportSections,
+  PdfReportEdition,
   TarotChartResult,
   ZiweiChartResult,
 } from '../types/holistic';
@@ -15,6 +16,10 @@ import { getSanFangSiZhengIndices } from '../engines/ziweiEngine';
 import { calculateTenYearTrend } from '../engines/tenYearTrendEngine';
 import { calculateEmotionalFlow } from '../engines/emotionalFlowEngine';
 import { calculateUpcomingAlerts } from '../engines/upcomingAlertsEngine';
+import {
+  calculateLifeGuidance,
+  EnergyTriggerItem,
+} from '../engines/lifeGuidanceEngine';
 
 export interface HolisticPdfExportInput {
   client: ClientProfile;
@@ -23,6 +28,7 @@ export interface HolisticPdfExportInput {
   tarot: TarotChartResult;
   targetDate: string;
   activeScope: HoroscopeScope;
+  edition?: PdfReportEdition;
   aiSummary: AIStage1Summary | null;
   crossSystemAnalysis?: AICrossSystemAnalysis | null;
   sections?: PdfExportSections;
@@ -30,6 +36,7 @@ export interface HolisticPdfExportInput {
 
 export const DEFAULT_PDF_SECTIONS: PdfExportSections = {
   scopeFocus: true,
+  lifeGuidance: true,
   chartRawData: true,
   tenYearTrend: true,
   upcomingAlerts: true,
@@ -177,12 +184,19 @@ class EditorialCanvasDoc {
   private clientName: string;
   private targetDate: string;
   private scopeLabel: string;
+  private edition: PdfReportEdition;
   private chapterCounter = 0;
 
-  constructor(clientName: string, targetDate: string, scopeLabel: string) {
+  constructor(
+    clientName: string,
+    targetDate: string,
+    scopeLabel: string,
+    edition: PdfReportEdition = 'consultant'
+  ) {
     this.clientName = clientName;
     this.targetDate = targetDate;
     this.scopeLabel = scopeLabel;
+    this.edition = edition;
     this.newPage(true);
   }
 
@@ -220,8 +234,12 @@ class EditorialCanvasDoc {
     if (!isFirst) {
       ctx.font = `500 20px ${FONT_SERIF}`;
       ctx.fillStyle = COLORS.inkGreen;
+      const headerBase =
+        this.edition === 'handout'
+          ? `個人專屬人生指南・${this.clientName}`
+          : `全息人生地圖報告・${this.clientName}`;
       const leftTitle = this.fitText(
-        `全息人生地圖報告・${this.clientName}`,
+        headerBase,
         CONTENT_W - 360,
         `500 20px ${FONT_SERIF}`
       );
@@ -376,11 +394,11 @@ class EditorialCanvasDoc {
       ctx.textBaseline = 'top';
       ctx.font = `400 17px ${FONT_SANS}`;
       ctx.fillStyle = COLORS.textMuted;
-      ctx.fillText(
-        `全息人生地圖工作台｜東方命理 × 西方原型 · 報告生成日 ${exportedAt}`,
-        MARGIN_X,
-        lineY + 14
-      );
+      const footerLeft =
+        this.edition === 'handout'
+          ? `個人專屬人生指南（交付閱讀版） · 報告生成日 ${exportedAt}`
+          : `全息人生地圖工作台｜東方命理 × 西方原型 · 報告生成日 ${exportedAt}`;
+      ctx.fillText(footerLeft, MARGIN_X, lineY + 14);
 
       const pageText = `第 ${idx + 1} / ${total} 頁`;
       ctx.font = `500 17px ${FONT_MONO}`;
@@ -392,14 +410,22 @@ class EditorialCanvasDoc {
 
 function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) {
   const { client, ziwei, bazi, tarot, targetDate, activeScope } = input;
+  const isHandout = (input.edition ?? 'consultant') === 'handout';
+  const guidance = isHandout
+    ? calculateLifeGuidance(client, ziwei, bazi, tarot, targetDate)
+    : null;
   const ctx = doc.ctx;
   doc.resetTextState();
 
   const innerW = CONTENT_W - 72;
   const meta1Font = `400 19.5px ${FONT_SANS}`;
   const meta2Font = `400 17.5px ${FONT_MONO}`;
-  const metaLine1Text = `${client.gender}命  ·  生肖${ziwei.zodiac}  ·  ${ziwei.fiveElementsClass}  ·  日主 ${bazi.dayMaster.stem}（${bazi.dayMaster.yinYang}${bazi.dayMaster.element}）  ·  塔羅 ${tarot.constellation.id} 號${tarot.constellation.name}`;
-  const metaLine2Text = `國曆 ${client.birthDate} ${client.birthTime}（${ziwei.time}）  |  農曆 ${ziwei.lunarDate}  |  查詢座標 ${targetDate}（${SCOPE_LABELS[activeScope]}）`;
+  const metaLine1Text = isHandout
+    ? `${client.gender}  ·  生肖${ziwei.zodiac}  ·  實歲 ${guidance!.stagePosition.actualAge} 歲  ·  人格原型 ${tarot.personalityCard.name} / 靈魂原型 ${tarot.soulCard.name}`
+    : `${client.gender}命  ·  生肖${ziwei.zodiac}  ·  ${ziwei.fiveElementsClass}  ·  日主 ${bazi.dayMaster.stem}（${bazi.dayMaster.yinYang}${bazi.dayMaster.element}）  ·  塔羅 ${tarot.constellation.id} 號${tarot.constellation.name}`;
+  const metaLine2Text = isHandout
+    ? `出生日期 ${client.birthDate} ${client.birthTime}  |  農曆 ${ziwei.lunarDate}  |  推演基準日 ${targetDate}（${SCOPE_LABELS[activeScope]}）`
+    : `國曆 ${client.birthDate} ${client.birthTime}（${ziwei.time}）  |  農曆 ${ziwei.lunarDate}  |  查詢座標 ${targetDate}（${SCOPE_LABELS[activeScope]}）`;
 
   const meta1Lines = doc.wrapText(metaLine1Text, innerW, meta1Font);
   const meta2Lines = doc.wrapText(metaLine2Text, innerW, meta2Font);
@@ -415,12 +441,11 @@ function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) 
   let by = doc.y + 30;
   ctx.font = `500 18px ${FONT_SANS}`;
   ctx.fillStyle = COLORS.goldLight;
+  const bannerKicker = isHandout
+    ? `個人運勢與行動指南 ｜ 交付閱讀版（${SCOPE_LABELS[activeScope]}視角）`
+    : `東方命理 × 西方原型 ｜ 全息人生地圖專業報告書（${SCOPE_LABELS[activeScope]}視角）`;
   ctx.fillText(
-    doc.fitText(
-      `東方命理 × 西方原型 ｜ 全息人生地圖專業報告書（${SCOPE_LABELS[activeScope]}視角）`,
-      innerW,
-      `500 18px ${FONT_SANS}`
-    ),
+    doc.fitText(bannerKicker, innerW, `500 18px ${FONT_SANS}`),
     MARGIN_X + 36,
     by
   );
@@ -428,8 +453,11 @@ function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) 
 
   ctx.font = `700 42px ${FONT_SERIF}`;
   ctx.fillStyle = '#FAF8F3';
+  const bannerTitle = isHandout
+    ? `${client.name}・個人專屬人生指南`
+    : `${client.name}・全息命盤報告書`;
   ctx.fillText(
-    doc.fitText(`${client.name}・全息命盤報告書`, innerW, `700 42px ${FONT_SERIF}`),
+    doc.fitText(bannerTitle, innerW, `700 42px ${FONT_SERIF}`),
     MARGIN_X + 36,
     by
   );
@@ -460,28 +488,57 @@ function renderMasthead(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) 
 
   const mainFont = `700 21px ${FONT_SERIF}`;
   const subFont = `400 15.5px ${FONT_SANS}`;
-  const anchors = [
-    {
-      kicker: '紫微命宮主星',
-      main: mingPalace.majorStars.map((s) => s.name).join('・') || '空宮（借對宮）',
-      sub: `${mingPalace.heavenlyStem}${mingPalace.earthlyBranch}宮 · 身宮落${bodyPalace.name}`,
-    },
-    {
-      kicker: '子平八字日主',
-      main: `${bazi.dayMaster.stem}（${bazi.dayMaster.yinYang}${bazi.dayMaster.element}）`,
-      sub: `日空亡 ${bazi.dayKongWang} · ${bazi.targetFlow.activeDecade ? `大運 ${bazi.targetFlow.activeDecade.ganZhi}` : '童限期'}`,
-    },
-    {
-      kicker: '塔羅人生原型',
-      main: `${tarot.personalityCard.name} / ${tarot.soulCard.name}`,
-      sub: `${tarot.constellation.id} 號${tarot.constellation.name}`,
-    },
-    {
-      kicker: '個人流年塔羅',
-      main: `${tarot.currentYearCard.card.displayNumber} ${tarot.currentYearCard.card.name}`,
-      sub: `下次切換 ${tarot.nextSwitchDate}`,
-    },
-  ].map((a) => ({
+  const rawAnchors = isHandout
+    ? [
+        {
+          kicker: '當前人生刻度',
+          main: guidance!.stagePosition.phaseLabel,
+          sub: `${guidance!.stagePosition.decadeTitle} · 第 ${guidance!.stagePosition.yearInDecade} / 10 年`,
+        },
+        {
+          kicker: '這段十年核心主線',
+          main: guidance!.stagePosition.currentStage.plainTheme,
+          sub: guidance!.stagePosition.nextShiftYear
+            ? `預計 ${guidance!.stagePosition.nextShiftYear} 年（${guidance!.stagePosition.nextShiftAge}歲）換軌`
+            : '穩步累積與打底期',
+        },
+        {
+          kicker: '天賦與靈魂原型',
+          main: `${tarot.personalityCard.name} / ${tarot.soulCard.name}`,
+          sub: `${tarot.constellation.name}`,
+        },
+        {
+          kicker: '今年年度課題',
+          main: `${tarot.currentYearCard.card.name}`,
+          sub: `${tarot.currentYearCard.card.keywords.slice(0, 2).join('・')} · 換牌 ${tarot.nextSwitchDate}`,
+        },
+      ]
+    : [
+        {
+          kicker: '紫微命宮主星',
+          main:
+            mingPalace.majorStars.map((s) => s.name).join('・') ||
+            '空宮（借對宮）',
+          sub: `${mingPalace.heavenlyStem}${mingPalace.earthlyBranch}宮 · 身宮落${bodyPalace.name}`,
+        },
+        {
+          kicker: '子平八字日主',
+          main: `${bazi.dayMaster.stem}（${bazi.dayMaster.yinYang}${bazi.dayMaster.element}）`,
+          sub: `日空亡 ${bazi.dayKongWang} · ${bazi.targetFlow.activeDecade ? `大運 ${bazi.targetFlow.activeDecade.ganZhi}` : '童限期'}`,
+        },
+        {
+          kicker: '塔羅人生原型',
+          main: `${tarot.personalityCard.name} / ${tarot.soulCard.name}`,
+          sub: `${tarot.constellation.id} 號${tarot.constellation.name}`,
+        },
+        {
+          kicker: '個人流年塔羅',
+          main: `${tarot.currentYearCard.card.displayNumber} ${tarot.currentYearCard.card.name}`,
+          sub: `下次切換 ${tarot.nextSwitchDate}`,
+        },
+      ];
+
+  const anchors = rawAnchors.map((a) => ({
     ...a,
     mainLines: doc.wrapText(a.main, colInnerW, mainFont).slice(0, 2),
     subLines: doc.wrapText(a.sub, colInnerW, subFont).slice(0, 2),
@@ -571,6 +628,492 @@ function renderScopeFocusSection(doc: EditorialCanvasDoc, input: HolisticPdfExpo
   });
 
   doc.y += boxH + 28;
+}
+
+function renderLifeGuidanceSection(
+  doc: EditorialCanvasDoc,
+  input: HolisticPdfExportInput
+) {
+  const isConsultant = (input.edition ?? 'consultant') === 'consultant';
+  const guidance = calculateLifeGuidance(
+    input.client,
+    input.ziwei,
+    input.bazi,
+    input.tarot,
+    input.targetDate
+  );
+  const { stagePosition, tailwinds, arenas, stoplosses, lifeCircles } = guidance;
+
+  doc.drawSectionHeader(
+    `當前十年階段定位與今年精力配置（${stagePosition.targetYear} 年）`,
+    isConsultant
+      ? `實歲 ${stagePosition.actualAge} 歲 · ${stagePosition.phaseLabel}（第 ${stagePosition.yearInDecade}/10 年） · ${stagePosition.technicalProof}`
+      : `實歲 ${stagePosition.actualAge} 歲 · 正處於「${stagePosition.decadeTitle}」第 ${stagePosition.yearInDecade} / 10 年（${stagePosition.phaseLabel}）`
+  );
+
+  // ==========================================================================
+  // Part A: Current 10-Year Stage Position Card + 10-Step Progress Bar
+  // ==========================================================================
+  const innerW = CONTENT_W - 48;
+  const headlineFont = `700 22px ${FONT_SERIF}`;
+  const bodyFont = `400 18px ${FONT_SANS}`;
+  const reframeFont = `400 17.5px ${FONT_SANS}`;
+  const techFont = `400 15.5px ${FONT_MONO}`;
+
+  const headlineLines = doc.wrapText(
+    stagePosition.stageHeadline,
+    innerW,
+    headlineFont
+  );
+  const guidanceLines = doc.wrapText(
+    stagePosition.stageGuidance,
+    innerW,
+    bodyFont
+  );
+  const reframeLines = doc.wrapText(
+    stagePosition.confusionReframe,
+    innerW - 32,
+    reframeFont
+  );
+  const techLines = isConsultant
+    ? doc.wrapText(`命理依據：${stagePosition.technicalProof}`, innerW, techFont)
+    : [];
+
+  const nodes = [
+    stagePosition.prevStage,
+    stagePosition.currentStage,
+    stagePosition.nextStage,
+  ];
+  const nodeColW = innerW / 3;
+  const nodeThemeFont = `400 15.5px ${FONT_SANS}`;
+  const nodeWrapped = nodes.map((n) =>
+    n ? doc.wrapText(n.plainTheme, nodeColW - 28, nodeThemeFont).slice(0, 2) : []
+  );
+  const maxNodeLines = Math.max(1, ...nodeWrapped.map((l) => l.length));
+  const nodesStripH = 54 + maxNodeLines * 22 + 12;
+
+  const progressBarBlockH = 56;
+  const reframeBoxH = 38 + reframeLines.length * 27 + 16;
+  const stageCardH =
+    24 +
+    28 +
+    headlineLines.length * 32 +
+    12 +
+    progressBarBlockH +
+    16 +
+    guidanceLines.length * 29 +
+    16 +
+    reframeBoxH +
+    16 +
+    nodesStripH +
+    (techLines.length > 0 ? 12 + techLines.length * 22 : 0) +
+    22;
+
+  doc.ensureSpace(stageCardH + 22);
+  doc.drawCardBox(
+    MARGIN_X,
+    doc.y,
+    CONTENT_W,
+    stageCardH,
+    COLORS.white,
+    COLORS.hairline
+  );
+
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    let sy = doc.y + 22;
+    const sx = MARGIN_X + 24;
+
+    ctx.font = `600 16.5px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.gold;
+    ctx.fillText(
+      `一、當下十年階段座標 · ${stagePosition.decadeTitle}（${stagePosition.currentStage.yearRange}）`,
+      sx,
+      sy
+    );
+
+    const stepSummary = `第 ${stagePosition.yearInDecade} / 10 年 · ${stagePosition.phaseLabel}`;
+    ctx.font = `600 16px ${FONT_MONO}`;
+    ctx.fillStyle = COLORS.inkGreen;
+    const sw = ctx.measureText(stepSummary).width;
+    ctx.fillText(stepSummary, MARGIN_X + CONTENT_W - 24 - sw, sy);
+    sy += 30;
+
+    ctx.font = headlineFont;
+    ctx.fillStyle = COLORS.inkGreen;
+    headlineLines.forEach((l) => {
+      ctx.fillText(l, sx, sy);
+      sy += 32;
+    });
+    sy += 12;
+
+    // 10-Step Progress Bar
+    const totalSteps = 10;
+    const stepGap = 8;
+    const segW = (innerW - stepGap * (totalSteps - 1)) / totalSteps;
+    const barH = 16;
+    for (let i = 0; i < totalSteps; i++) {
+      const stepNum = i + 1;
+      const bx = sx + i * (segW + stepGap);
+      if (stepNum < stagePosition.yearInDecade) {
+        ctx.fillStyle = COLORS.inkGreen;
+      } else if (stepNum === stagePosition.yearInDecade) {
+        ctx.fillStyle = COLORS.gold;
+      } else {
+        ctx.fillStyle = '#E5DEC9';
+      }
+      ctx.fillRect(bx, sy, segW, barH);
+    }
+
+    ctx.font = `400 14.5px ${FONT_MONO}`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(
+      `階段起點 ${stagePosition.currentStage.yearRange.split('–')[0] ?? ''}`,
+      sx,
+      sy + 24
+    );
+    const midLabel = `今年 ${stagePosition.targetYear}（實歲 ${stagePosition.actualAge} 歲）`;
+    ctx.font = `600 15px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.gold;
+    const midW = ctx.measureText(midLabel).width;
+    ctx.fillText(midLabel, sx + innerW / 2 - midW / 2, sy + 24);
+
+    const endLabel = stagePosition.nextShiftYear
+      ? `預計 ${stagePosition.nextShiftYear} 年（${stagePosition.nextShiftAge}歲）換軌`
+      : `階段終點 ${stagePosition.currentStage.yearRange.split('–')[1] ?? ''}`;
+    ctx.font = `400 14.5px ${FONT_MONO}`;
+    ctx.fillStyle = COLORS.textMuted;
+    const endW = ctx.measureText(endLabel).width;
+    ctx.fillText(endLabel, sx + innerW - endW, sy + 24);
+    sy += progressBarBlockH + 14;
+
+    // Stage Guidance paragraph
+    ctx.font = bodyFont;
+    ctx.fillStyle = COLORS.textBody;
+    guidanceLines.forEach((l) => {
+      ctx.fillText(l, sx, sy);
+      sy += 29;
+    });
+    sy += 14;
+
+    // Confusion Reframe Callout Box
+    ctx.fillStyle = COLORS.surfaceSoft;
+    ctx.fillRect(sx, sy, innerW, reframeBoxH);
+    ctx.strokeStyle = COLORS.hairline;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sx, sy, innerW, reframeBoxH);
+
+    let ry = sy + 14;
+    ctx.font = `600 16px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.inkGreen;
+    ctx.fillText('若近期感到迷惘，請這樣看現在的位置：', sx + 16, ry);
+    ry += 26;
+
+    ctx.font = reframeFont;
+    ctx.fillStyle = COLORS.textBody;
+    reframeLines.forEach((l) => {
+      ctx.fillText(l, sx + 16, ry);
+      ry += 27;
+    });
+    sy += reframeBoxH + 16;
+
+    // 3-Stage Context Row (Prev / Current / Next Decade)
+    ctx.strokeStyle = COLORS.hairlineSoft;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + innerW, sy);
+    ctx.stroke();
+
+    nodes.forEach((node, idx) => {
+      const nx = sx + idx * nodeColW;
+      if (idx > 0) {
+        ctx.strokeStyle = COLORS.hairlineSoft;
+        ctx.beginPath();
+        ctx.moveTo(nx, sy + 10);
+        ctx.lineTo(nx, sy + nodesStripH - 6);
+        ctx.stroke();
+      }
+      const padLeft = idx === 0 ? 0 : 16;
+      let ny = sy + 14;
+      if (!node) {
+        ctx.font = `500 15px ${FONT_SANS}`;
+        ctx.fillStyle = COLORS.textMuted;
+        ctx.fillText(idx === 0 ? '上一段十年：—' : '下一段十年：—', nx + padLeft, ny);
+        return;
+      }
+
+      ctx.font = `600 15px ${FONT_SANS}`;
+      ctx.fillStyle = idx === 1 ? COLORS.gold : COLORS.textMuted;
+      ctx.fillText(`${node.label}（${node.ageRange}）`, nx + padLeft, ny);
+      ny += 22;
+
+      ctx.font = `400 14px ${FONT_MONO}`;
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(node.yearRange, nx + padLeft, ny);
+      ny += 20;
+
+      ctx.font = nodeThemeFont;
+      ctx.fillStyle = idx === 1 ? COLORS.inkGreen : COLORS.textBody;
+      nodeWrapped[idx].forEach((l) => {
+        ctx.fillText(l, nx + padLeft, ny);
+        ny += 22;
+      });
+    });
+    sy += nodesStripH;
+
+    if (techLines.length > 0) {
+      sy += 10;
+      ctx.font = techFont;
+      ctx.fillStyle = COLORS.textMuted;
+      techLines.forEach((l) => {
+        ctx.fillText(l, sx, sy);
+        sy += 22;
+      });
+    }
+  }
+
+  doc.y += stageCardH + 22;
+
+  // ==========================================================================
+  // Part B: 3-Zone Yearly Energy Allocation (Stacked Full-Width Editorial Cards)
+  // ==========================================================================
+  const zones: Array<{
+    title: string;
+    subtitle: string;
+    accent: string;
+    bgTint: string;
+    emptyText: string;
+    items: EnergyTriggerItem[];
+  }> = [
+    {
+      title: '二之一、有風的地方（順風入口與助力）',
+      subtitle: '阻力最小、回報最容易放大的切入點，適合主動出擊與借勢',
+      accent: COLORS.green,
+      bgTint: '#F4FAF7',
+      emptyText: '今年外在順風入口較為低調，適合以穩健累積自身實力為主。',
+      items: tailwinds,
+    },
+    {
+      title: '二之二、該扛的主戰場（今年核心舞台）',
+      subtitle: '時間與注意力最該聚焦的核心任務，主動定調就能拉開差距',
+      accent: COLORS.gold,
+      bgTint: '#FCF9F0',
+      emptyText: '今年無單一強制聚焦的衝突戰場，可依自身長期目標推進。',
+      items: arenas,
+    },
+    {
+      title: '二之三、容易白耗的止損區（減載與設界線）',
+      subtitle: '最容易反覆拉扯、事倍功半的地方，務必先停損再談進攻',
+      accent: COLORS.vermilion,
+      bgTint: '#FDF6F5',
+      emptyText: '今年未觸發明顯的結構性止損警訊，維持既有風險控管即可。',
+      items: stoplosses,
+    },
+  ];
+
+  const itemHeadlineFont = `600 18px ${FONT_SANS}`;
+  const itemBodyFont = `400 17.5px ${FONT_SANS}`;
+  const itemTechFont = `400 15px ${FONT_MONO}`;
+
+  zones.forEach((zone) => {
+    const wrappedItems = zone.items.map((item) => {
+      const headLines = doc.wrapText(
+        `【${item.domainLabel}】${item.headline}`,
+        innerW,
+        itemHeadlineFont
+      );
+      const bodyLines = doc.wrapText(item.guidance, innerW, itemBodyFont);
+      const proofLines = isConsultant
+        ? doc.wrapText(`依據：${item.technicalProof}`, innerW, itemTechFont)
+        : [];
+      const h =
+        headLines.length * 27 +
+        4 +
+        bodyLines.length * 27 +
+        (proofLines.length > 0 ? 4 + proofLines.length * 21 : 0);
+      return { headLines, bodyLines, proofLines, h };
+    });
+
+    const headerBarH = 68;
+    const bodyContentH =
+      wrappedItems.length > 0
+        ? wrappedItems.reduce((sum, it, idx) => sum + it.h + (idx > 0 ? 22 : 0), 0)
+        : 32;
+    const zoneCardH = headerBarH + 20 + bodyContentH + 22;
+
+    doc.ensureSpace(zoneCardH + 18);
+    doc.drawCardBox(
+      MARGIN_X,
+      doc.y,
+      CONTENT_W,
+      zoneCardH,
+      COLORS.white,
+      COLORS.hairline
+    );
+
+    const ctx = doc.ctx;
+    doc.resetTextState();
+
+    // Tinted Zone Header Strip
+    ctx.fillStyle = zone.bgTint;
+    ctx.fillRect(MARGIN_X + 1, doc.y + 1, CONTENT_W - 2, headerBarH - 1);
+    ctx.strokeStyle = COLORS.hairlineSoft;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(MARGIN_X, doc.y + headerBarH);
+    ctx.lineTo(MARGIN_X + CONTENT_W, doc.y + headerBarH);
+    ctx.stroke();
+
+    ctx.font = `700 19.5px ${FONT_SERIF}`;
+    ctx.fillStyle = zone.accent;
+    ctx.fillText(zone.title, MARGIN_X + 24, doc.y + 14);
+
+    ctx.font = `400 15.5px ${FONT_SANS}`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(zone.subtitle, MARGIN_X + 24, doc.y + 42);
+
+    let zy = doc.y + headerBarH + 18;
+    if (wrappedItems.length === 0) {
+      ctx.font = itemBodyFont;
+      ctx.fillStyle = COLORS.textMuted;
+      ctx.fillText(zone.emptyText, MARGIN_X + 24, zy);
+    } else {
+      wrappedItems.forEach((it, idx) => {
+        if (idx > 0) {
+          ctx.strokeStyle = COLORS.hairlineSoft;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(MARGIN_X + 24, zy - 10);
+          ctx.lineTo(MARGIN_X + CONTENT_W - 24, zy - 10);
+          ctx.stroke();
+        }
+        ctx.font = itemHeadlineFont;
+        ctx.fillStyle = COLORS.inkGreen;
+        it.headLines.forEach((l) => {
+          ctx.fillText(l, MARGIN_X + 24, zy);
+          zy += 27;
+        });
+        zy += 4;
+
+        ctx.font = itemBodyFont;
+        ctx.fillStyle = COLORS.textBody;
+        it.bodyLines.forEach((l) => {
+          ctx.fillText(l, MARGIN_X + 24, zy);
+          zy += 27;
+        });
+
+        if (it.proofLines.length > 0) {
+          zy += 4;
+          ctx.font = itemTechFont;
+          ctx.fillStyle = COLORS.textMuted;
+          it.proofLines.forEach((l) => {
+            ctx.fillText(l, MARGIN_X + 24, zy);
+            zy += 21;
+          });
+        }
+        zy += 22;
+      });
+    }
+
+    doc.y += zoneCardH + 18;
+  });
+
+  // ==========================================================================
+  // Part C: Four Life Circles Scan (2x2 Grid, Dynamic Row Heights)
+  // ==========================================================================
+  const circleHeaderH = 38;
+  doc.ensureSpace(circleHeaderH + 170);
+  {
+    const ctx = doc.ctx;
+    doc.resetTextState();
+    ctx.font = `700 19.5px ${FONT_SERIF}`;
+    ctx.fillStyle = COLORS.inkGreen;
+    ctx.fillText(
+      `三、${stagePosition.targetYear} 年四大生活圈變動掃描`,
+      MARGIN_X,
+      doc.y + 4
+    );
+  }
+  doc.y += circleHeaderH;
+
+  const gap = 20;
+  const colW = (CONTENT_W - gap) / 2;
+  const cardInnerW = colW - 40;
+  const cBodyFont = `400 16.5px ${FONT_SANS}`;
+  const cTechFont = `400 14.5px ${FONT_MONO}`;
+
+  const preparedCircles = lifeCircles.map((c) => {
+    const bodyLines = doc.wrapText(c.guidance, cardInnerW, cBodyFont);
+    const techText = isConsultant
+      ? `${c.pillarLabel} ${c.ganZhi} · ${c.technicalNote}`
+      : '';
+    const statusColor =
+      c.relation === 'clash'
+        ? COLORS.vermilion
+        : c.relation === 'harmony'
+          ? COLORS.green
+          : c.relation === 'repeat'
+            ? COLORS.gold
+            : COLORS.textMuted;
+    const h =
+      20 +
+      30 +
+      (techText ? 22 : 4) +
+      bodyLines.length * 25 +
+      20;
+    return { ...c, bodyLines, techText, statusColor, h };
+  });
+
+  for (let row = 0; row < 2; row++) {
+    const left = preparedCircles[row * 2];
+    const right = preparedCircles[row * 2 + 1];
+    if (!left) break;
+    const rowH = Math.max(left.h, right?.h ?? 0, 134);
+
+    doc.ensureSpace(rowH + 18);
+    const ctx = doc.ctx;
+    doc.resetTextState();
+
+    [left, right].forEach((item, colIdx) => {
+      if (!item) return;
+      const cx = MARGIN_X + colIdx * (colW + gap);
+      const cy = doc.y;
+      doc.drawCardBox(cx, cy, colW, rowH, COLORS.white, COLORS.hairline);
+
+      let ly = cy + 18;
+      ctx.font = `700 18.5px ${FONT_SERIF}`;
+      ctx.fillStyle = COLORS.inkGreen;
+      ctx.fillText(item.circlePlain, cx + 20, ly);
+
+      ctx.font = `600 16px ${FONT_SANS}`;
+      ctx.fillStyle = item.statusColor;
+      const stW = ctx.measureText(item.relationPlain).width;
+      ctx.fillText(item.relationPlain, cx + colW - 20 - stW, ly + 2);
+      ly += 30;
+
+      if (item.techText) {
+        ctx.font = cTechFont;
+        ctx.fillStyle = COLORS.textMuted;
+        ctx.fillText(item.techText, cx + 20, ly);
+        ly += 22;
+      } else {
+        ly += 4;
+      }
+
+      ctx.font = cBodyFont;
+      ctx.fillStyle = COLORS.textBody;
+      item.bodyLines.forEach((l) => {
+        ctx.fillText(l, cx + 20, ly);
+        ly += 25;
+      });
+    });
+
+    doc.y += rowH + 18;
+  }
+
+  doc.y += 14;
 }
 
 function renderZiweiSection(doc: EditorialCanvasDoc, input: HolisticPdfExportInput) {
@@ -2313,6 +2856,7 @@ export async function exportHolisticPdfReport(
     await document.fonts.ready;
   }
 
+  const edition: PdfReportEdition = input.edition ?? 'consultant';
   const sections: PdfExportSections = {
     ...DEFAULT_PDF_SECTIONS,
     ...(input.sections ?? {}),
@@ -2321,11 +2865,15 @@ export async function exportHolisticPdfReport(
   const editorialDoc = new EditorialCanvasDoc(
     input.client.name,
     input.targetDate,
-    SCOPE_LABELS[input.activeScope]
+    SCOPE_LABELS[input.activeScope],
+    edition
   );
 
   renderMasthead(editorialDoc, input);
 
+  if (sections.lifeGuidance) {
+    renderLifeGuidanceSection(editorialDoc, input);
+  }
   if (sections.scopeFocus) {
     renderScopeFocusSection(editorialDoc, input);
   }
@@ -2372,6 +2920,7 @@ export async function exportHolisticPdfReport(
 
   const safeClientName = input.client.name.replace(/[\\/:*?"<>|]/g, '_');
   const safeScope = SCOPE_LABELS[input.activeScope].replace(/[\\/:*?"<>|・]/g, '');
-  const fileName = `全息人生地圖_${safeClientName}_${safeScope}_${input.targetDate}.pdf`;
+  const editionTag = edition === 'handout' ? '交付閱讀版' : '專業完整版';
+  const fileName = `全息人生地圖_${safeClientName}_${editionTag}_${safeScope}_${input.targetDate}.pdf`;
   pdf.save(fileName);
 }

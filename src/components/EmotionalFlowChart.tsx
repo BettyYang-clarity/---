@@ -365,17 +365,20 @@ export const EmotionalFlowChart: React.FC<EmotionalFlowChartProps> = ({
 
     if (shouldAnimate && !prefersReduced) {
       [fortunePath, emoPath].forEach((p, idx) => {
-        const len = p.node()?.getTotalLength() ?? 0;
-        if (len > 0) {
-          p.attr('stroke-dasharray', `${len} ${len}`)
-            .attr('stroke-dashoffset', len)
-            .transition()
-            .duration(440)
-            .ease(d3.easeCubicOut)
-            .attr('stroke-dashoffset', 0)
-            .on('end', () => {
-              p.attr('stroke-dasharray', idx === 1 ? '6,3' : 'none');
-            });
+        const pathEl = p.node();
+        const len = pathEl?.getTotalLength() ?? 0;
+        if (pathEl && len > 0 && typeof pathEl.animate === 'function') {
+          pathEl.setAttribute('stroke-dasharray', `${len} ${len}`);
+          const anim = pathEl.animate(
+            [
+              { strokeDashoffset: len },
+              { strokeDashoffset: 0 },
+            ],
+            { duration: 440, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+          );
+          anim.onfinish = () => {
+            pathEl.setAttribute('stroke-dasharray', idx === 1 ? '6,3' : 'none');
+          };
         }
       });
     }

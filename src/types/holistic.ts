@@ -4,8 +4,6 @@ export type HoroscopeScope = 'origin' | 'decadal' | 'yearly' | 'monthly' | 'dail
 
 export type ActiveTab = 'overview' | 'ziwei' | 'bazi' | 'tarot' | 'ai';
 
-export type OperationMode = 'consultant' | 'client';
-
 export interface ClientProfile {
   id: string;
   name: string;
@@ -565,8 +563,11 @@ export interface UpcomingAlertsResult {
 
 // ---------- Customizable PDF Export Structure ----------
 
+export type PdfReportEdition = 'handout' | 'consultant';
+
 export interface PdfExportSections {
   scopeFocus: boolean; // 當前選定運限核心摘要（本命/大限/流年/流月/流日）
+  lifeGuidance: boolean; // 當下十年階段定位、今年精力配置三區與四大生活圈掃描
   chartRawData: boolean; // 三系統命盤原始數據（紫微・八字・塔羅）
   tenYearTrend: boolean; // 未來十年運程趨勢與關鍵轉折點圖表
   upcomingAlerts: boolean; // 未來三個月重要節氣／運程通知
@@ -577,6 +578,7 @@ export interface PdfExportSections {
 }
 
 export interface PdfExportConfig {
+  edition: PdfReportEdition;
   reportScope: HoroscopeScope;
   sections: PdfExportSections;
 }

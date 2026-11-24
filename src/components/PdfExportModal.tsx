@@ -6,17 +6,14 @@ import {
   BaziChartResult,
   ClientProfile,
   HoroscopeScope,
-  OperationMode,
   PdfExportConfig,
   PdfExportSections,
+  PdfReportEdition,
   TarotChartResult,
   ZiweiChartResult,
 } from '../types/holistic';
 import { SCOPE_LABELS } from '../engines/holisticPayload';
-import {
-  buildScopeExecutiveDigest,
-  DEFAULT_PDF_SECTIONS,
-} from '../services/pdfReportGenerator';
+import { buildScopeExecutiveDigest } from '../services/pdfReportGenerator';
 
 interface PdfExportModalProps {
   isOpen: boolean;
@@ -27,7 +24,6 @@ interface PdfExportModalProps {
   tarot: TarotChartResult;
   targetDate: string;
   activeScope: HoroscopeScope;
-  operationMode?: OperationMode;
   aiSummary: AIStage1Summary | null;
   crossSystemAnalysis: AICrossSystemAnalysis | null;
   isExporting: boolean;
@@ -50,6 +46,36 @@ interface ChapterMeta {
   statusNote?: string;
 }
 
+function getEditionDefaultSections(
+  edition: PdfReportEdition,
+  hasNotes: boolean
+): PdfExportSections {
+  if (edition === 'handout') {
+    return {
+      scopeFocus: false,
+      lifeGuidance: true,
+      chartRawData: false,
+      tenYearTrend: true,
+      upcomingAlerts: true,
+      aiSummary: true,
+      emotionalFlow: true,
+      crossSystem: false,
+      consultantNotes: false,
+    };
+  }
+  return {
+    scopeFocus: true,
+    lifeGuidance: true,
+    chartRawData: true,
+    tenYearTrend: true,
+    upcomingAlerts: true,
+    aiSummary: true,
+    emotionalFlow: true,
+    crossSystem: true,
+    consultantNotes: hasNotes,
+  };
+}
+
 export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   isOpen,
   onClose,
@@ -59,50 +85,26 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
   tarot,
   targetDate,
   activeScope,
-  operationMode = 'consultant',
   aiSummary,
   crossSystemAnalysis,
   isExporting,
   onConfirmExport,
 }) => {
-  const isClientMode = operationMode === 'client';
+  const hasNotes = Boolean(client.notes.trim());
+  const [edition, setEdition] = useState<PdfReportEdition>('handout');
   const [reportScope, setReportScope] = useState<HoroscopeScope>(activeScope);
   const [sections, setSections] = useState<PdfExportSections>(() =>
-    isClientMode
-      ? {
-          scopeFocus: true,
-          chartRawData: false,
-          tenYearTrend: true,
-          upcomingAlerts: true,
-          aiSummary: true,
-          emotionalFlow: true,
-          crossSystem: false,
-          consultantNotes: false,
-        }
-      : {
-          ...DEFAULT_PDF_SECTIONS,
-          consultantNotes: Boolean(client.notes.trim()),
-        }
+    getEditionDefaultSections('handout', hasNotes)
   );
 
   useEffect(() => {
     if (isOpen) {
       setReportScope(activeScope);
-      setSections((prev) =>
-        isClientMode
-          ? {
-              ...prev,
-              chartRawData: false,
-              crossSystem: false,
-              consultantNotes: false,
-            }
-          : {
-              ...prev,
-              consultantNotes: Boolean(client.notes.trim()),
-            }
-      );
+      setSections(getEditionDefaultSections(edition, Boolean(client.notes.trim())));
     }
-  }, [isOpen, activeScope, client.notes, isClientMode]);
+    // Reset chapter defaults when modal opens or active client changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, activeScope, client.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -121,57 +123,73 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
     [ziwei, bazi, tarot, targetDate, reportScope]
   );
 
-  const hasNotes = Boolean(client.notes.trim());
+  const isHandout = edition === 'handout';
 
-  const chapterDefs: ChapterMeta[] = useMemo(() => {
-    const all: ChapterMeta[] = [
+  const chapterDefs: ChapterMeta[] = useMemo(
+    () => [
+      {
+        key: 'lifeGuidance',
+        title: '當前十年階段定位與今年精力配置',
+        description: isHandout
+          ? '白話呈現目前十年進度、今年順風入口／主戰場／止損區，以及四大生活圈變動掃描（隱藏術語）。'
+          : '呈現目前十年進度、今年順風入口／主戰場／止損區與四大生活圈變動掃描（附紫微／八字命理依據）。',
+        estPages: 1.4,
+      },
       {
         key: 'scopeFocus',
-        title: isClientMode
-          ? `當期運勢重點摘要（${SCOPE_LABELS[reportScope]}）`
-          : `選定運限核心摘要（${SCOPE_LABELS[reportScope]}）`,
-        description: isClientMode
-          ? '整理你目前所選時期的核心運勢方向與個人能量焦點。'
-          : '依上方所選運限聚焦該層級四化飛星與紫微／八字／塔羅三盤重點。',
+        title: `選定運限核心摘要（${SCOPE_LABELS[reportScope]}）`,
+        description:
+          '依上方所選運限聚焦該層級四化飛星與紫微／八字／塔羅三盤重點。',
         estPages: 0.4,
       },
       {
         key: 'chartRawData',
         title: '命盤原始數據（紫微・八字・塔羅）',
-        description: '收錄勸學齋四化表、七大重點宮位、八字四柱藏干神煞與塔羅家族牌陣。',
+        description:
+          '收錄勸學齋四化表、七大重點宮位、八字四柱藏干神煞與塔羅家族牌陣。',
         estPages: 2.2,
       },
       {
         key: 'tenYearTrend',
         title: '未來十年運程趨勢與關鍵轉折點圖表',
-        description: '內嵌高解析十年波動折線圖，標示高峰、築底與人生關鍵轉折年。',
+        description:
+          '內嵌高解析十年波動折線圖，標示高峰、築底與人生關鍵轉折年。',
         estPages: 0.9,
       },
       {
         key: 'upcomingAlerts',
         title: '未來三個月重要節氣／運程通知',
-        description: '依二十四節氣交節與重要轉頻節點列出近 90 天運勢波動提醒。',
+        description:
+          '依二十四節氣交節與重要轉頻節點列出近 90 天運勢波動提醒。',
         estPages: 0.8,
       },
       {
         key: 'aiSummary',
-        title: isClientMode
-          ? 'AI 運勢重點與行動策略'
+        title: isHandout
+          ? 'AI 運勢重點與行動建議（白話版）'
           : 'AI 深度解盤總結（四大結構化大綱）',
-        description: '人生總評、事業／財運／感情／健康四維狀態燈號、盲區轉化與具體行動建議。',
+        description: isHandout
+          ? '以俐落白話輸出總評、事業／財運／感情／健康四維燈號與具體取捨建議。'
+          : '完整輸出人生總評、四維狀態燈號、盲區轉化與具體行動策略。',
         estPages: 1.4,
-        statusNote: aiSummary ? '已就緒' : '匯出時自動載入',
+        statusNote: isHandout
+          ? '匯出時自動轉譯白話版'
+          : aiSummary
+            ? '已就緒'
+            : '匯出時自動載入',
       },
       {
         key: 'emotionalFlow',
         title: '流年情緒流向 × 運程節律雙軸圖表',
-        description: '內嵌 12 個月雙軸心運曲線、外順內耗提醒與狀態調整建議。',
+        description:
+          '內嵌 12 個月雙軸心運曲線、外順內耗提醒與狀態調整建議。',
         estPages: 0.9,
       },
       {
         key: 'crossSystem',
         title: '跨體系合參分析（紫微主星 × 八字五行）',
-        description: '收錄 AI 偵測之雙體系衝突張力點、互補增益點與命理調校建議。',
+        description:
+          '收錄 AI 偵測之雙體系衝突張力點、互補增益點與命理調校建議。',
         estPages: 1.1,
         statusNote: crossSystemAnalysis ? '已就緒' : '匯出時自動偵測',
       },
@@ -184,17 +202,9 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
         estPages: hasNotes ? 0.3 : 0,
         statusNote: hasNotes ? undefined : '目前空白',
       },
-    ];
-    if (isClientMode) {
-      return all.filter(
-        (c) =>
-          c.key !== 'chartRawData' &&
-          c.key !== 'crossSystem' &&
-          c.key !== 'consultantNotes'
-      );
-    }
-    return all;
-  }, [reportScope, aiSummary, crossSystemAnalysis, hasNotes, isClientMode]);
+    ],
+    [reportScope, aiSummary, crossSystemAnalysis, hasNotes, isHandout]
+  );
 
   const selectedChapters = useMemo(
     () =>
@@ -211,100 +221,43 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleSelectEdition = (nextEdition: PdfReportEdition) => {
+    setEdition(nextEdition);
+    setSections(getEditionDefaultSections(nextEdition, hasNotes));
+  };
+
   const toggleSection = (key: keyof PdfExportSections) => {
     setSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const applyPreset = (preset: 'full' | 'concise' | 'empathy') => {
-    if (isClientMode) {
-      if (preset === 'full') {
-        setSections({
-          scopeFocus: true,
-          chartRawData: false,
-          tenYearTrend: true,
-          upcomingAlerts: true,
-          aiSummary: true,
-          emotionalFlow: true,
-          crossSystem: false,
-          consultantNotes: false,
-        });
-      } else if (preset === 'concise') {
-        setSections({
-          scopeFocus: true,
-          chartRawData: false,
-          tenYearTrend: true,
-          upcomingAlerts: true,
-          aiSummary: true,
-          emotionalFlow: false,
-          crossSystem: false,
-          consultantNotes: false,
-        });
-      } else {
-        setSections({
-          scopeFocus: true,
-          chartRawData: false,
-          tenYearTrend: false,
-          upcomingAlerts: true,
-          aiSummary: true,
-          emotionalFlow: true,
-          crossSystem: false,
-          consultantNotes: false,
-        });
-      }
-      return;
-    }
-
-    if (preset === 'full') {
-      setSections({
-        scopeFocus: true,
-        chartRawData: true,
-        tenYearTrend: true,
-        upcomingAlerts: true,
-        aiSummary: true,
-        emotionalFlow: true,
-        crossSystem: true,
-        consultantNotes: hasNotes,
-      });
-    } else if (preset === 'concise') {
-      setSections({
-        scopeFocus: true,
-        chartRawData: false,
-        tenYearTrend: true,
-        upcomingAlerts: true,
-        aiSummary: true,
-        emotionalFlow: false,
-        crossSystem: false,
-        consultantNotes: hasNotes,
-      });
-    } else {
-      // 心理同理版
-      setSections({
-        scopeFocus: true,
-        chartRawData: false,
-        tenYearTrend: false,
-        upcomingAlerts: true,
-        aiSummary: true,
-        emotionalFlow: true,
-        crossSystem: true,
-        consultantNotes: hasNotes,
-      });
-    }
+  const selectAllChapters = () => {
+    setSections({
+      scopeFocus: true,
+      lifeGuidance: true,
+      chartRawData: true,
+      tenYearTrend: true,
+      upcomingAlerts: true,
+      aiSummary: true,
+      emotionalFlow: true,
+      crossSystem: true,
+      consultantNotes: hasNotes,
+    });
   };
 
-  const safeScopeName = SCOPE_LABELS[reportScope].replace(/[\\/:*?"<>|・]/g, '');
-  const previewFileName = `全息人生地圖_${client.name}_${safeScopeName}_${targetDate}.pdf`;
+  const resetEditionDefaults = () => {
+    setSections(getEditionDefaultSections(edition, hasNotes));
+  };
+
+  const safeScopeName = SCOPE_LABELS[reportScope].replace(
+    /[\\/:*?"<>|・]/g,
+    ''
+  );
+  const editionTag = isHandout ? '交付閱讀版' : '專業完整版';
+  const previewFileName = `全息人生地圖_${client.name}_${editionTag}_${safeScopeName}_${targetDate}.pdf`;
 
   const handleConfirm = async () => {
     if (selectedChapters.length === 0 || isExporting) return;
-    const sanitizedSections: PdfExportSections = isClientMode
-      ? {
-          ...sections,
-          chartRawData: false,
-          crossSystem: false,
-          consultantNotes: false,
-        }
-      : sections;
-    await onConfirmExport({ reportScope, sections: sanitizedSections });
+    await onConfirmExport({ edition, reportScope, sections });
   };
 
   return (
@@ -323,7 +276,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
           <div>
             <div className="flex items-center gap-2 text-xs font-medium text-[#8C6830]">
               <FileText className="h-4 w-4" />
-              <span>客製化 A4 商用報告輸出</span>
+              <span>A4 商用報告雙版本輸出</span>
             </div>
             <h2
               id="pdf-preview-modal-title"
@@ -332,7 +285,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               PDF 報告結構預覽 — {client.name}
             </h2>
             <p className="mt-0.5 text-xs text-[#64736D] tabular-nums">
-              推演日期 {targetDate} · 可切換報告聚焦運限並自由勾選欲收錄的章節
+              推演日期 {targetDate} · 可選擇「交付閱讀版」或「專業完整版」，並自由微調欲收錄章節
             </p>
           </div>
           <button
@@ -348,15 +301,77 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {/* 1. Scope Selector + Live Core Summary Preview */}
+          {/* Step 1: Two Selectable Report Editions */}
+          <section>
+            <div className="text-xs font-semibold text-[#152924]">
+              步驟 1：選擇報告版本套組（兩套可選）
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handleSelectEdition('handout')}
+                aria-pressed={isHandout}
+                className={`rounded-md border p-4 text-left transition-colors ${
+                  isHandout
+                    ? 'border-[#152924] bg-white ring-1 ring-[#152924]'
+                    : 'border-[#DDD6C7] bg-[#FAF8F3] hover:bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-serif text-sm font-bold text-[#152924]">
+                    交付親友／客戶閱讀版
+                  </span>
+                  <span
+                    className={`text-[11px] font-medium ${
+                      isHandout ? 'text-[#2B5B4C]' : 'text-[#8A948F]'
+                    }`}
+                  >
+                    {isHandout ? '目前選用' : '點擊套用'}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-[#4C5A55]">
+                  適合送給認識的人或諮詢對象閱讀：全篇白話好懂、封面不顯示艱深術語，預設收錄「十年階段與今年精力配置」、十年趨勢、三個月節氣提醒、AI 白話策略與情緒曲線，並預設隱藏命盤原表與內部筆記。
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectEdition('consultant')}
+                aria-pressed={!isHandout}
+                className={`rounded-md border p-4 text-left transition-colors ${
+                  !isHandout
+                    ? 'border-[#152924] bg-white ring-1 ring-[#152924]'
+                    : 'border-[#DDD6C7] bg-[#FAF8F3] hover:bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-serif text-sm font-bold text-[#152924]">
+                    諮詢師專業完整版
+                  </span>
+                  <span
+                    className={`text-[11px] font-medium ${
+                      !isHandout ? 'text-[#2B5B4C]' : 'text-[#8A948F]'
+                    }`}
+                  >
+                    {!isHandout ? '目前選用' : '點擊套用'}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed text-[#4C5A55]">
+                  適合解盤留檔或同業交流：完整收錄全部 9 大章節，保留紫微四化與宮位表、八字四柱藏干神煞、塔羅家族密碼、十年階段與精力配置（含命理依據）、跨體系合參分析與您的諮詢備忘筆記。
+                </p>
+              </button>
+            </div>
+          </section>
+
+          {/* Step 2: Scope Selector + Live Core Digest */}
           <section className="rounded-md border border-[#DDD6C7] bg-white p-4">
             <div className="flex flex-col justify-between gap-3 border-b border-[#ECE6DA] pb-3 sm:flex-row sm:items-center">
               <div>
                 <div className="text-xs font-semibold text-[#152924]">
-                  步驟 1：確認報告聚焦運限與核心摘要預覽
+                  步驟 2：確認報告聚焦運限
                 </div>
                 <div className="mt-0.5 text-[11.5px] text-[#6B7974]">
-                  切換運限後，PDF 封面視角、四化高亮列與首章核心摘要將同步對應
+                  切換運限後，封面標註、四化高亮列與 AI 解盤聚焦範圍將同步對應
                 </div>
               </div>
 
@@ -385,22 +400,21 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               </div>
             </div>
 
-            {/* Live Scope Digest Preview */}
-            <div className="mt-3.5 space-y-2.5">
+            <div className="mt-3 space-y-2">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-serif text-sm font-bold text-[#152924]">
                   {digest.headline}
                 </span>
-                {!isClientMode && (
+                {!isHandout && (
                   <span className="text-[11.5px] font-medium text-[#8C6830]">
                     {digest.mutagenLabel}：{digest.mutagenLine}
                   </span>
                 )}
               </div>
 
-              {isClientMode ? (
-                <div className="border-t border-[#EFEAE0] pt-2.5 text-xs leading-relaxed text-[#354540]">
-                  本份報告已切換為「客戶自助版」，僅收錄白話運勢重點、十年趨勢曲線、近期節氣波動提醒與 AI 策略建議（已隱藏命盤原始數據與內部備註）。
+              {isHandout ? (
+                <div className="border-t border-[#EFEAE0] pt-2 text-xs leading-relaxed text-[#354540]">
+                  「交付閱讀版」封面將自動以白話呈現當前十年階段、主線任務與流年課題；若勾選「AI 運勢重點與行動建議」，匯出時會即時產出無艱深術語的交付版本（不覆蓋工作台專業快取）。
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2 text-xs leading-relaxed text-[#354540] md:grid-cols-3">
@@ -418,54 +432,34 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                   </div>
                 </div>
               )}
-
-              {aiSummary && (
-                <div className="border-t border-[#EFEAE0] pt-2.5 text-xs leading-relaxed text-[#43524D]">
-                  <span className="font-semibold text-[#152924]">
-                    AI 解盤大綱預覽：
-                  </span>
-                  {aiSummary.lifeMapOverview.headline} —{' '}
-                  {aiSummary.currentFortuneAndPsyche.headline}
-                </div>
-              )}
             </div>
           </section>
 
-          {/* 2. Two-Column: Chapter Checkboxes + Dynamic Report Outline */}
+          {/* Step 3: Two-Column Chapter Selection + Dynamic TOC Preview */}
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
             {/* Left: Selectable Chapters */}
             <section className="lg:col-span-7">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-xs font-semibold text-[#152924]">
-                  步驟 2：勾選欲包含的報告章節
+                  步驟 3：自由微調收錄章節（可跨版本單獨增減）
                 </div>
                 <div className="flex items-center gap-3 text-xs">
                   <button
                     type="button"
-                    onClick={() => applyPreset('full')}
+                    onClick={resetEditionDefaults}
                     className="text-[#2B5B4C] underline-offset-4 hover:text-[#152924] hover:underline"
                   >
-                    完整全息版
+                    重設為{editionTag}預設
                   </button>
                   <span className="text-[#D4CCB9]" aria-hidden="true">
                     /
                   </span>
                   <button
                     type="button"
-                    onClick={() => applyPreset('concise')}
+                    onClick={selectAllChapters}
                     className="text-[#2B5B4C] underline-offset-4 hover:text-[#152924] hover:underline"
                   >
-                    精簡諮詢版
-                  </button>
-                  <span className="text-[#D4CCB9]" aria-hidden="true">
-                    /
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('empathy')}
-                    className="text-[#2B5B4C] underline-offset-4 hover:text-[#152924] hover:underline"
-                  >
-                    深度心理同理版
+                    全部勾選
                   </button>
                 </div>
               </div>
@@ -530,11 +524,13 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               </div>
               <div className="mt-2.5 rounded-md border border-[#DDD6C7] bg-white p-4">
                 <div className="border-b border-[#ECE6DA] pb-3">
-                  <div className="text-[11px] text-[#8C6830]">
-                    A4 高解析繁體中文排版
+                  <div className="text-[11px] font-medium text-[#8C6830]">
+                    {editionTag} · A4 高解析繁體中文排版
                   </div>
                   <div className="mt-0.5 font-serif text-sm font-bold text-[#152924]">
-                    {client.name}・全息命盤報告書
+                    {isHandout
+                      ? `${client.name}・個人專屬人生指南`
+                      : `${client.name}・全息命盤報告書`}
                   </div>
                   <div className="mt-1 font-mono text-[11px] text-[#64736D] tabular-nums">
                     預估約 {estimatedPages} 頁 · 已選 {selectedChapters.length}{' '}
@@ -552,7 +548,11 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
                       <span className="font-mono text-[11px] text-[#8A948F] tabular-nums">
                         封面
                       </span>
-                      <span>命主基本資料與四核心座標速覽</span>
+                      <span>
+                        {isHandout
+                          ? '個人檔案與當前人生階段四核心摘要'
+                          : '命主基本資料與三體系核心座標速覽'}
+                      </span>
                     </li>
                     {selectedChapters.map((ch, idx) => (
                       <li
@@ -584,7 +584,7 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
           <span className="text-xs text-[#64736D]">
             {isExporting
               ? '正在彙整選定章節並繪製高解析繁體中文 PDF，請稍候…'
-              : '系統將依您勾選的結構自動重新編排章節序號與分頁'}
+              : `目前準備匯出「${editionTag}」，系統將自動重編章節序號與分頁`}
           </span>
           <div className="flex items-center gap-2.5">
             <button
@@ -606,7 +606,9 @@ export const PdfExportModal: React.FC<PdfExportModalProps> = ({
               ) : (
                 <Printer className="h-3.5 w-3.5" />
               )}
-              {isExporting ? '正在生成 PDF 報告…' : '確認匯出 PDF 報告'}
+              {isExporting
+                ? '正在生成 PDF 報告…'
+                : `匯出${editionTag} PDF`}
             </button>
           </div>
         </div>

@@ -14,19 +14,16 @@ import {
   ClientProfile,
   DomainFortuneIndicator,
   HolisticChartSummaryPayload,
-  OperationMode,
 } from '../types/holistic';
 import { SafeMarkdown } from './SafeMarkdown';
 import { CrossSystemAnalysisSection } from './CrossSystemAnalysisSection';
 import { EmotionalFlowChart } from './EmotionalFlowChart';
-import { ClientPromptCopyCard } from './ClientPromptCopyCard';
 
 interface AIReadingPanelProps {
   cacheKey: string;
   client: ClientProfile;
   targetDate: string;
   payload: HolisticChartSummaryPayload;
-  operationMode: OperationMode;
   isActiveTab?: boolean;
   onSummaryChange?: (summary: AIStage1Summary | null) => void;
   onCrossSystemChange?: (analysis: AICrossSystemAnalysis | null) => void;
@@ -88,12 +85,10 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
   client,
   targetDate,
   payload,
-  operationMode,
   isActiveTab = true,
   onSummaryChange,
   onCrossSystemChange,
 }) => {
-  const isClientMode = operationMode === 'client';
   const quickPrompts = CONSULTANT_QUICK_PROMPTS;
   const [summaryCache, setSummaryCache] = useState<
     Record<string, AIStage1Summary>
@@ -137,7 +132,7 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chartSummary: payloadRef.current,
-          operationMode,
+          operationMode: 'consultant',
         }),
       });
 
@@ -229,7 +224,7 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chartSummary: payloadRef.current,
-          operationMode,
+          operationMode: 'consultant',
           question: trimmed,
           history: existingHistory.map((m) => ({
             role: m.role,
@@ -279,37 +274,30 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
           <div>
             <div className="flex items-center gap-2 text-xs font-medium text-[#8C6830]">
               <Sparkles className="h-4 w-4" />
-              <span>
-                {isClientMode
-                  ? '個人專屬運勢與策略重點報告'
-                  : '東方命理 × 西方原型 · 全息雙段式 AI 顧問報告'}
-              </span>
+              <span>東方命理 × 西方原型 · 全息雙段式 AI 顧問報告</span>
             </div>
             <h1 className="mt-1 font-serif text-2xl font-bold text-[#152924]">
-              {isClientMode
-                ? `${payload.client.name}・專屬運勢與行動重點報告`
-                : `${payload.client.name}・全息深度解盤報告`}
+              {payload.client.name}・全息深度解盤報告
             </h1>
             <p className="mt-1 text-xs text-[#5D6B66] tabular-nums">
-              {isClientMode
-                ? `國曆 ${payload.client.solarBirthDate} ${payload.client.birthTime} · 檢視時間 ${payload.targetContext.targetDate} · 以白話直白呈現當期運勢節奏、風險盲點與具體決策建議`
-                : `${payload.client.gender}命 · 國曆 ${payload.client.solarBirthDate} ${payload.client.birthTime} · 推演座標 ${payload.targetContext.targetDate}（${payload.targetContext.activeScopeLabel}）· 依據紫微勸學齋四化、子平八字神煞與塔羅人生密碼交叉生成`}
+              {payload.client.gender}命 · 國曆 {payload.client.solarBirthDate}{' '}
+              {payload.client.birthTime} · 推演座標{' '}
+              {payload.targetContext.targetDate}（
+              {payload.targetContext.activeScopeLabel}）· 依據紫微勸學齋四化、子平八字神煞與塔羅人生密碼交叉生成
             </p>
           </div>
 
-          {!isClientMode && (
-            <button
-              type="button"
-              onClick={() => void fetchStage1Summary(true)}
-              disabled={summaryLoading}
-              className="inline-flex items-center gap-1.5 self-start rounded-md border border-[#D4CCB9] bg-[#FAF8F3] px-3.5 py-2 text-xs font-medium text-[#152924] transition-colors hover:bg-[#EFEAE0] disabled:opacity-50 sm:self-center whitespace-nowrap shrink-0"
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${summaryLoading ? 'animate-spin' : ''}`}
-              />
-              重新產出解盤大綱
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => void fetchStage1Summary(true)}
+            disabled={summaryLoading}
+            className="inline-flex items-center gap-1.5 self-start rounded-md border border-[#D4CCB9] bg-[#FAF8F3] px-3.5 py-2 text-xs font-medium text-[#152924] transition-colors hover:bg-[#EFEAE0] disabled:opacity-50 sm:self-center whitespace-nowrap shrink-0"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${summaryLoading ? 'animate-spin' : ''}`}
+            />
+            重新產出解盤大綱
+          </button>
         </div>
       </section>
 
@@ -317,15 +305,11 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
       <section className="space-y-3.5">
         <div className="flex items-baseline justify-between">
           <h2 className="font-serif text-base font-semibold text-[#152924]">
-            {isClientMode
-              ? '一、基礎運勢總覽與四大領域重點'
-              : '第一階段：全息結構化大綱總覽'}
+            第一階段：全息結構化大綱總覽
           </h2>
-          {!isClientMode && (
-            <span className="text-xs text-[#73807B]">
-              紫微斗數 × 子平八字 × Mary K. Greer 生日塔羅
-            </span>
-          )}
+          <span className="text-xs text-[#73807B]">
+            紫微斗數 × 子平八字 × Mary K. Greer 生日塔羅
+          </span>
         </div>
 
         {/* Loading Skeleton (2x2 Grid) */}
@@ -380,7 +364,7 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
             <article className="flex flex-col justify-between rounded-lg border border-[#DDD6C7] bg-white p-6">
               <div>
                 <div className="text-xs font-medium text-[#2B5B4C]">
-                  {isClientMode ? '01. 核心優勢與定位總評' : '01. 人生地圖總評'}
+                  01. 人生地圖總評
                 </div>
                 <h3 className="mt-1.5 font-serif text-lg font-semibold text-[#152924]">
                   {currentSummary.lifeMapOverview.headline}
@@ -396,33 +380,29 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
                 )}
               </div>
 
-              {!isClientMode && (
-                <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
-                  <button
-                    type="button"
-                    disabled={chatLoading}
-                    onClick={() =>
-                      void sendStage2Question(
-                        '請深入解析命主的性格天賦、紫微命宮三方四正、八字日主格局與神煞、以及塔羅人格／靈魂牌如何交互影響核心優勢與職場定位？',
-                        '詳解性格天賦'
-                      )
-                    }
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
-                  >
-                    深入解析：詳解性格天賦與格局定位
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
+                <button
+                  type="button"
+                  disabled={chatLoading}
+                  onClick={() =>
+                    void sendStage2Question(
+                      '請深入解析命主的性格天賦、紫微命宮三方四正、八字日主格局與神煞、以及塔羅人格／靈魂牌如何交互影響核心優勢與職場定位？',
+                      '詳解性格天賦'
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
+                >
+                  深入解析：詳解性格天賦與格局定位
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </article>
 
             {/* Card 2: 當前流年運勢與心理課題 */}
             <article className="flex flex-col justify-between rounded-lg border border-[#DDD6C7] bg-white p-6">
               <div>
                 <div className="text-xs font-medium text-[#8C6830]">
-                  {isClientMode
-                    ? '02. 當期運勢節奏與四維指標'
-                    : '02. 當前流年運勢與心理課題'}
+                  02. 當前流年運勢與心理課題
                 </div>
                 <h3 className="mt-1.5 font-serif text-lg font-semibold text-[#152924]">
                   {currentSummary.currentFortuneAndPsyche.headline}
@@ -462,31 +442,29 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
                 </div>
               </div>
 
-              {!isClientMode && (
-                <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
-                  <button
-                    type="button"
-                    disabled={chatLoading}
-                    onClick={() =>
-                      void sendStage2Question(
-                        '請詳解當前大限／大運與今年流年的整體走勢，特別針對財運、事業機會與感情關係的關鍵時間點做深度分析。',
-                        '詳解今年運勢節點'
-                      )
-                    }
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
-                  >
-                    深入解析：詳解當前大運、財運與感情節點
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
+                <button
+                  type="button"
+                  disabled={chatLoading}
+                  onClick={() =>
+                    void sendStage2Question(
+                      '請詳解當前大限／大運與今年流年的整體走勢，特別針對財運、事業機會與感情關係的關鍵時間點做深度分析。',
+                      '詳解今年運勢節點'
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
+                >
+                  深入解析：詳解當前大運、財運與感情節點
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </article>
 
             {/* Card 3: 盲區與隱藏資源 */}
             <article className="flex flex-col justify-between rounded-lg border border-[#DDD6C7] bg-white p-6">
               <div>
                 <div className="text-xs font-medium text-[#A63A2B]">
-                  {isClientMode ? '03. 關鍵盲點與槓桿資源' : '03. 盲區與隱藏資源'}
+                  03. 盲區與隱藏資源
                 </div>
                 <h3 className="mt-1.5 font-serif text-lg font-semibold text-[#152924]">
                   {currentSummary.blindSpotsAndHiddenResources.headline}
@@ -494,17 +472,13 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
                 <div className="mt-3.5 space-y-3.5 text-[14.5px] leading-[1.8] text-[#2F3E39]">
                   <div>
                     <div className="mb-1 text-xs font-semibold text-[#A63A2B]">
-                      {isClientMode
-                        ? '最容易消耗精力的盲點與風險'
-                        : '重複卡關的慣性盲點'}
+                      重複卡關的慣性盲點
                     </div>
                     <p>{currentSummary.blindSpotsAndHiddenResources.blindSpots}</p>
                   </div>
                   <div className="border-t border-[#F0EBE0] pt-3">
                     <div className="mb-1 text-xs font-semibold text-[#1E6B4B]">
-                      {isClientMode
-                        ? '可放大運用的優勢與隱藏資源'
-                        : '轉化後的隱藏天賦與資源'}
+                      轉化後的隱藏天賦與資源
                     </div>
                     <p>
                       {
@@ -516,33 +490,29 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
                 </div>
               </div>
 
-              {!isClientMode && (
-                <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
-                  <button
-                    type="button"
-                    disabled={chatLoading}
-                    onClick={() =>
-                      void sendStage2Question(
-                        '請結合紫微化忌／弱宮、八字五行失衡與神煞空亡，以及塔羅陰影／導師牌，深入拆解命主反覆遇到的盲區模式，以及如何把陰影轉化為助力？',
-                        '詳解陰影牌課題'
-                      )
-                    }
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
-                  >
-                    深入解析：詳解陰影牌與盲區轉化課題
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
+                <button
+                  type="button"
+                  disabled={chatLoading}
+                  onClick={() =>
+                    void sendStage2Question(
+                      '請結合紫微化忌／弱宮、八字五行失衡與神煞空亡，以及塔羅陰影／導師牌，深入拆解命主反覆遇到的盲區模式，以及如何把陰影轉化為助力？',
+                      '詳解陰影牌課題'
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
+                >
+                  深入解析：詳解陰影牌與盲區轉化課題
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </article>
 
             {/* Card 4: 造命與覺察行動 */}
             <article className="flex flex-col justify-between rounded-lg border border-[#DDD6C7] bg-white p-6">
               <div>
                 <div className="text-xs font-medium text-[#152924]">
-                  {isClientMode
-                    ? '04. 具體行動與心態校準'
-                    : '04. 造命與覺察行動'}
+                  04. 造命與覺察行動
                 </div>
                 <h3 className="mt-1.5 font-serif text-lg font-semibold text-[#152924]">
                   {currentSummary.actionAndAwareness.headline}
@@ -550,41 +520,35 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
                 <div className="mt-3.5 space-y-3.5 text-[14.5px] leading-[1.8] text-[#2F3E39]">
                   <div>
                     <div className="mb-1 text-xs font-semibold text-[#2B5B4C]">
-                      {isClientMode
-                        ? '具體決策與行動優先級'
-                        : '外部趨吉避凶行動（造命）'}
+                      外部趨吉避凶行動（造命）
                     </div>
                     <p>{currentSummary.actionAndAwareness.externalAction}</p>
                   </div>
                   <div className="border-t border-[#F0EBE0] pt-3">
                     <div className="mb-1 text-xs font-semibold text-[#8C6830]">
-                      {isClientMode
-                        ? '心態與節奏校準'
-                        : '內在心理轉念練習（覺察）'}
+                      內在心理轉念練習（覺察）
                     </div>
                     <p>{currentSummary.actionAndAwareness.internalAwareness}</p>
                   </div>
                 </div>
               </div>
 
-              {!isClientMode && (
-                <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
-                  <button
-                    type="button"
-                    disabled={chatLoading}
-                    onClick={() =>
-                      void sendStage2Question(
-                        '請針對接下來的季度，幫命主規劃一份具體的「造命行動清單」（外部決策與避險）與「心理覺察練習」（內在轉念與日常功課）。',
-                        '詳解造命行動方案'
-                      )
-                    }
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
-                  >
-                    深入解析：客製季度造命與覺察清單
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
+              <div className="mt-5 border-t border-[#ECE6DA] pt-3.5">
+                <button
+                  type="button"
+                  disabled={chatLoading}
+                  onClick={() =>
+                    void sendStage2Question(
+                      '請針對接下來的季度，幫命主規劃一份具體的「造命行動清單」（外部決策與避險）與「心理覺察練習」（內在轉念與日常功課）。',
+                      '詳解造命行動方案'
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2B5B4C] transition-colors hover:text-[#152924] disabled:opacity-50"
+                >
+                  深入解析：客製季度造命與覺察清單
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </article>
           </div>
         )}
@@ -594,22 +558,15 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
       <EmotionalFlowChart
         client={client}
         targetDate={targetDate}
-        onAskFollowUp={
-          isClientMode ? undefined : (q, tag) => void sendStage2Question(q, tag)
-        }
+        onAskFollowUp={(q, tag) => void sendStage2Question(q, tag)}
         chatLoading={chatLoading}
-        hideTechnicalCoords={isClientMode}
       />
 
-      {/* Stage 2: Client BYO-AI Prompt Copy Card vs. Consultant Consultation Dialogue Room */}
-      {isClientMode ? (
-        <ClientPromptCopyCard payload={payload} summary={currentSummary} />
-      ) : (
-        <>
-          <section
-            ref={stage2SectionRef}
-            className="rounded-lg border border-[#DDD6C7] bg-white"
-          >
+      {/* Stage 2: Consultant Consultation Dialogue Room */}
+      <section
+        ref={stage2SectionRef}
+        className="rounded-lg border border-[#DDD6C7] bg-white"
+      >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#ECE6DA] px-6 py-4">
               <div>
                 <h2 className="inline-flex items-center gap-2 font-serif text-base font-semibold text-[#152924]">
@@ -736,18 +693,16 @@ export const AIReadingPanel: React.FC<AIReadingPanelProps> = ({
             </form>
           </section>
 
-          {/* Stage 3: Cross-System Synthesis Module (Professional Consultant Mode Only) */}
-          <CrossSystemAnalysisSection
-            cacheKey={cacheKey}
-            payload={payload}
-            isActiveTab={isActiveTab}
-            stage1Loading={summaryLoading}
-            onAskFollowUp={(q, tag) => void sendStage2Question(q, tag)}
-            chatLoading={chatLoading}
-            onAnalysisChange={onCrossSystemChange}
-          />
-        </>
-      )}
+      {/* Stage 3: Cross-System Synthesis Module */}
+      <CrossSystemAnalysisSection
+        cacheKey={cacheKey}
+        payload={payload}
+        isActiveTab={isActiveTab}
+        stage1Loading={summaryLoading}
+        onAskFollowUp={(q, tag) => void sendStage2Question(q, tag)}
+        chatLoading={chatLoading}
+        onAnalysisChange={onCrossSystemChange}
+      />
     </div>
   );
 };

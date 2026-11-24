@@ -8,11 +8,25 @@ import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.PORT || 3000);
+function resolvePort(): number {
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--port' && argv[i + 1]) {
+      const parsed = Number(argv[i + 1]);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    } else if (argv[i].startsWith('--port=')) {
+      const parsed = Number(argv[i].slice('--port='.length));
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  }
+  return Number(process.env.PORT || 3000);
+}
+
+const PORT = resolvePort();
 const distPath = path.resolve(__dirname, 'dist');
 const hasDistBuild = fs.existsSync(path.join(distPath, 'index.html'));
 const isDev =
-  process.env.NODE_ENV === 'development' ||
+  process.env.APP_MODE === 'dev' ||
   (!hasDistBuild && process.env.NODE_ENV !== 'production');
 const MODEL_NAME = 'gemini-4-hydrogen';
 
@@ -60,23 +74,52 @@ async function withBackoff<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> 
   throw lastErr;
 }
 
+function sanitizeErrorSnippet(raw: string): string {
+  return raw
+    .replace(/AIza[0-9A-Za-z\-_]{10,}/g, '[REDACTED_KEY]')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 220);
+}
+
+function extractUpstreamReason(raw: string): string {
+  try {
+    const start = raw.indexOf('{');
+    if (start >= 0) {
+      const parsed = JSON.parse(raw.slice(start));
+      const errObj = parsed?.error ?? parsed;
+      const status = errObj?.status ? `${errObj.status}` : '';
+      const code = errObj?.code ? `${errObj.code}` : '';
+      const msg = errObj?.message ? `${errObj.message}` : '';
+      const joined = [code, status, msg].filter(Boolean).join(' · ');
+      if (joined) return sanitizeErrorSnippet(joined);
+    }
+  } catch {
+    // Fallback to raw snippet
+  }
+  return sanitizeErrorSnippet(raw);
+}
+
 function classifyGeminiError(err: unknown): {
   status: number;
   code: string;
   message: string;
-  detail?: string;
+  reason?: string;
 } {
   const raw = err instanceof Error ? err.message : String(err);
+  const reason = extractUpstreamReason(raw);
   console.error('[Gemini API Error]', raw.slice(0, 600));
 
   if (
     raw.includes('API_KEY_INVALID') ||
+    raw.includes('API key not valid') ||
     raw.includes('PERMISSION_DENIED') ||
     raw.includes('403')
   ) {
     return {
       status: 403,
       code: 'API_KEY_INVALID',
+      reason,
       message:
         'Gemini API 金鑰無效或權限不足，請在 AI Studio 的「Settings > Secrets」面板檢查或重新選擇 GEMINI_API_KEY。排盤與命主管理功能皆不受影響。',
     };
@@ -85,6 +128,7 @@ function classifyGeminiError(err: unknown): {
     return {
       status: 404,
       code: 'MODEL_NOT_FOUND',
+      reason,
       message: '指定的 Gemini 模型暫時無法存取，請稍後再試或檢查 API 權限設定。',
     };
   }
@@ -92,16 +136,41 @@ function classifyGeminiError(err: unknown): {
     return {
       status: 429,
       code: 'RATE_LIMIT',
+      reason,
       message:
         '目前 AI 解盤請求已達免費配額或頻率上限（429）。請稍候片刻點擊「重新嘗試連線」，或於 AI Studio 的「Settings > Secrets」面板切換至已啟用計費的 API 金鑰以提升配額。',
+    };
+  }
+  if (
+    raw.includes('UNAVAILABLE') ||
+    raw.includes('503') ||
+    raw.includes('DEADLINE_EXCEEDED') ||
+    raw.includes('overloaded')
+  ) {
+    return {
+      status: 503,
+      code: 'SERVICE_UNAVAILABLE',
+      reason,
+      message:
+        'Gemini 上游服務暫時負載過高（503），請稍候 10 秒後點擊「重新嘗試連線」。您的排盤數據與命主資料庫皆正常運作。',
     };
   }
   return {
     status: 502,
     code: 'UPSTREAM_ERROR',
+    reason,
     message:
       'AI 解盤引擎暫時無法連線，請點擊重試。您的排盤數據與命主資料庫皆正常運作。',
   };
+}
+
+function parseModelJson(rawText: string): unknown {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  return JSON.parse(cleaned);
 }
 
 const SUMMARY_RESPONSE_SCHEMA = {
@@ -403,14 +472,14 @@ async function generateWithFallback(
   } catch (primaryErr) {
     const raw =
       primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
-    if (
-      raw.includes('RESOURCE_EXHAUSTED') ||
-      raw.includes('429') ||
-      raw.includes('NOT_FOUND') ||
-      raw.includes('404')
-    ) {
+    const isAuthFailure =
+      raw.includes('API_KEY_INVALID') ||
+      raw.includes('API key not valid') ||
+      raw.includes('PERMISSION_DENIED') ||
+      raw.includes('403');
+    if (!isAuthFailure) {
       console.warn(
-        `[Gemini Fallback] Primary model ${MODEL_NAME} unavailable (${raw.slice(0, 160)}), falling back to ${FALLBACK_MODEL_NAME}`
+        `[Gemini Fallback] Primary model ${MODEL_NAME} failed (${raw.slice(0, 200)}), falling back to ${FALLBACK_MODEL_NAME}`
       );
       return await withBackoff(
         () =>
@@ -494,11 +563,13 @@ ${JSON.stringify(chartSummary, null, 2)}`;
       return;
     }
 
-    const parsed = JSON.parse(text);
+    const parsed = parseModelJson(text);
     res.json({ summary: parsed });
   } catch (err) {
     const info = classifyGeminiError(err);
-    res.status(info.status).json({ code: info.code, error: info.message });
+    res
+      .status(info.status)
+      .json({ code: info.code, error: info.message, reason: info.reason });
   }
 });
 
@@ -602,7 +673,9 @@ ${question}
     res.json({ reply: answer });
   } catch (err) {
     const info = classifyGeminiError(err);
-    res.status(info.status).json({ code: info.code, error: info.message });
+    res
+      .status(info.status)
+      .json({ code: info.code, error: info.message, reason: info.reason });
   }
 });
 
@@ -658,11 +731,13 @@ ${JSON.stringify(chartSummary, null, 2)}`;
       return;
     }
 
-    const parsed = JSON.parse(text);
+    const parsed = parseModelJson(text);
     res.json({ analysis: parsed });
   } catch (err) {
     const info = classifyGeminiError(err);
-    res.status(info.status).json({ code: info.code, error: info.message });
+    res
+      .status(info.status)
+      .json({ code: info.code, error: info.message, reason: info.reason });
   }
 });
 
@@ -675,9 +750,32 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html')) {
+            res.setHeader(
+              'Cache-Control',
+              'no-cache, no-store, must-revalidate'
+            );
+          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader(
+              'Cache-Control',
+              'public, max-age=31536000, immutable'
+            );
+          }
+        },
+      })
+    );
     app.use((req, res, next) => {
-      if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+      if (
+        (req.method === 'GET' || req.method === 'HEAD') &&
+        !req.path.startsWith('/api/') &&
+        !req.path.startsWith('/assets/') &&
+        !path.extname(req.path)
+      ) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.sendFile(path.join(distPath, 'index.html'));
         return;
       }
