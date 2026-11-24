@@ -2,7 +2,7 @@ export type GenderType = '男' | '女';
 
 export type HoroscopeScope = 'origin' | 'decadal' | 'yearly' | 'monthly' | 'daily';
 
-export type ActiveTab = 'overview' | 'ziwei' | 'bazi' | 'tarot' | 'ai';
+export type ActiveTab = 'overview' | 'ziwei' | 'bazi' | 'tarot' | 'synastry' | 'ai';
 
 export interface ClientProfile {
   id: string;
@@ -582,6 +582,145 @@ export interface PdfExportConfig {
   reportScope: HoroscopeScope;
   sections: PdfExportSections;
 }
+
+// ---------- Dual-Client Synastry (雙人合盤) Types ----------
+
+export type SynastryRelationType = 'romantic' | 'business' | 'family' | 'friendship';
+
+export type SynastryTone = 'harmony' | 'complement' | 'dynamic' | 'caution';
+
+export interface BaziPillarInteraction {
+  pairLabel: string; // e.g., "日柱對日柱"
+  pillarA: string; // e.g., "庚辰"
+  pillarB: string; // e.g., "乙酉"
+  relationLabel: string; // e.g., "天合地合（鴛鴦合）"
+  tone: SynastryTone;
+  explanation: string;
+}
+
+export interface BaziElementComplement {
+  element: FiveElement;
+  countA: number;
+  countB: number;
+  statusLabel: string; // e.g., "B 補 A 缺", "A 補 B 缺", "共同稀缺", "雙強疊加", "平衡共存"
+  tone: SynastryTone;
+}
+
+export interface ZiweiFlyingMutagenHit {
+  mutagen: '祿' | '權' | '科' | '忌';
+  starName: string;
+  targetPalaceName: string;
+  targetBranch: string;
+  interpretation: string;
+}
+
+export interface ZiweiRoleMirror {
+  sourceName: string;
+  sourceMingBranch: string;
+  sourceMingStars: string;
+  landsInTargetPalace: string;
+  roleInterpretation: string;
+}
+
+export interface SynastryResult {
+  relationType: SynastryRelationType;
+  targetDate: string;
+  clientA: ClientProfile;
+  clientB: ClientProfile;
+  bazi: {
+    dayMasterRelation: {
+      stemA: string;
+      elementA: FiveElement;
+      stemB: string;
+      elementB: FiveElement;
+      relationLabel: string;
+      tone: SynastryTone;
+      summary: string;
+    };
+    dayBranchRelation: {
+      branchA: string;
+      branchB: string;
+      relationLabel: string;
+      tone: SynastryTone;
+      summary: string;
+    };
+    pillarInteractions: BaziPillarInteraction[];
+    elementMatrix: BaziElementComplement[];
+    bSupplementsA: FiveElement[];
+    aSupplementsB: FiveElement[];
+    sharedMissingElements: FiveElement[];
+    noblemanLinks: Array<{
+      direction: string;
+      starName: string;
+      detail: string;
+    }>;
+  };
+  ziwei: {
+    aInB: ZiweiRoleMirror;
+    bInA: ZiweiRoleMirror;
+    aMingStem: string;
+    aFliesToB: ZiweiFlyingMutagenHit[];
+    bMingStem: string;
+    bFliesToA: ZiweiFlyingMutagenHit[];
+    starArchetypeMatch: {
+      groupA: string;
+      groupB: string;
+      summary: string;
+    };
+    currentYearSync: {
+      year: string;
+      aYearlySummary: string;
+      bYearlySummary: string;
+    };
+  };
+  tarot: {
+    compositeRawNumber: number;
+    compositeFormula: string;
+    compositeCard: TarotArcanaInfo;
+    compositeRootCard: TarotArcanaInfo | null;
+    sameConstellation: boolean;
+    constellationSummary: string;
+    mirrorHits: Array<{
+      direction: string;
+      cardName: string;
+      explanation: string;
+    }>;
+    yearCycleSync: {
+      aYearCard: string;
+      aNextSwitch: string;
+      bYearCard: string;
+      bNextSwitch: string;
+    };
+  };
+}
+
+export interface AISynastryAnalysis {
+  relationshipPortrait: {
+    headline: string;
+    keywords: string[];
+    summary: string;
+  };
+  synergyHighlights: Array<{
+    title: string;
+    evidence: string;
+    insight: string;
+  }>;
+  frictionPoints: Array<{
+    title: string;
+    evidence: string;
+    resolution: string;
+  }>;
+  roleAndDynamics: {
+    aImpactOnB: string;
+    bImpactOnA: string;
+    currentYearRhythm: string;
+  };
+  practicalAdvice: Array<{
+    focus: string;
+    action: string;
+  }>;
+}
+
 
 
 

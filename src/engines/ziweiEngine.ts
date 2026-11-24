@@ -23,8 +23,8 @@ function ensureZiweiConfig() {
   }
 }
 
-// Stem -> [祿, 權, 科, 忌] matching 勸學齋 (庚: 陽武陰同) for Origin Mutagen Table display
-const ORIGIN_MUTAGEN_MAP: Record<string, [string, string, string, string]> = {
+// Stem -> [祿, 權, 科, 忌] matching 勸學齋 (庚: 陽武陰同) for Origin Mutagen Table & Flying-Star Synastry
+export const ORIGIN_MUTAGEN_MAP: Record<string, [string, string, string, string]> = {
   甲: ['廉貞', '破軍', '武曲', '太陽'],
   乙: ['天機', '天梁', '紫微', '太陰'],
   丙: ['天同', '天機', '文昌', '廉貞'],

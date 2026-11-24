@@ -41,6 +41,7 @@ import { OverviewTab } from './components/OverviewTab';
 import { ZiweiTab } from './components/ZiweiTab';
 import { BaziTab } from './components/BaziTab';
 import { TarotTab } from './components/TarotTab';
+import { SynastryTab } from './components/SynastryTab';
 import { AIReadingPanel } from './components/AIReadingPanel';
 
 function getTodayYMD(): string {
@@ -94,7 +95,8 @@ const VIEW_TABS: Array<{ id: ActiveTab; label: string }> = [
   { id: 'overview', label: '全息地圖總覽' },
   { id: 'ziwei', label: '紫微斗數' },
   { id: 'bazi', label: '八字命盤' },
-  { id: 'tarot', label: '塔羅人生密碼' },
+  { id: 'tarot', label: '塔羅密碼' },
+  { id: 'synastry', label: '雙人合盤' },
   { id: 'ai', label: 'AI 深度解盤' },
 ];
 
@@ -965,6 +967,17 @@ export default function App() {
                     tarot={charts.tarot}
                     activeScope={activeScope}
                     onSelectCycleYear={handleSelectTarotCycleYear}
+                  />
+                )}
+                {activeTab === 'synastry' && (
+                  <SynastryTab
+                    clients={clients}
+                    defaultClientAId={activeClient.id}
+                    targetDate={targetDate}
+                    onAddClient={() => {
+                      setEditingClient(null);
+                      setIsModalOpen(true);
+                    }}
                   />
                 )}
                 {/* Keep AIReadingPanel mounted so summary pre-loads cleanly and chat history never resets across tab switches */}

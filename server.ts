@@ -419,6 +419,119 @@ const CROSS_SYSTEM_RESPONSE_SCHEMA = {
   ],
 };
 
+const SYNASTRY_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    relationshipPortrait: {
+      type: Type.OBJECT,
+      properties: {
+        headline: {
+          type: Type.STRING,
+          description: '一句精煉且具洞見的合盤總標題（12~22字），概括兩人在所選關係情境中的核心化學反應。',
+        },
+        keywords: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+          description: '3個精準關係核心關鍵詞（每個 4~8 字）。',
+        },
+        summary: {
+          type: Type.STRING,
+          description:
+            '結合紫微命宮落位與飛星四化、八字日主日支與五行互補、以及塔羅合盤關係原型牌，撰寫 140~210 字的立體三系統合盤總評。',
+        },
+      },
+      required: ['headline', 'keywords', 'summary'],
+    },
+    synergyHighlights: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: '默契或互補亮點標題（8~16字）。',
+          },
+          evidence: {
+            type: Type.STRING,
+            description: '引用輸入 JSON 中真實的八字合會/五行互補/貴人、紫微落宮/飛星祿科、或塔羅合盤原型作為依據（18~45字）。',
+          },
+          insight: {
+            type: Type.STRING,
+            description: '說明此特質在真實相處或合作中的具體展現與價值（55~95字）。',
+          },
+        },
+        required: ['title', 'evidence', 'insight'],
+      },
+      description: '固定產出 3 筆核心默契與互補優勢。',
+    },
+    frictionPoints: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: '磨合或張力盲點標題（8~16字）。',
+          },
+          evidence: {
+            type: Type.STRING,
+            description: '引用輸入 JSON 中真實的八字刑沖害剋/共同缺行、紫微飛星化權化忌落宮、或塔羅陰影課題作為依據（18~45字）。',
+          },
+          resolution: {
+            type: Type.STRING,
+            description: '客觀剖析摩擦成因，並給出可落地的溝通轉念或分工解法（60~100字）。',
+          },
+        },
+        required: ['title', 'evidence', 'resolution'],
+      },
+      description: '固定產出 3 筆潛在磨合與溝通盲點。',
+    },
+    roleAndDynamics: {
+      type: Type.OBJECT,
+      properties: {
+        aImpactOnB: {
+          type: Type.STRING,
+          description: '依據 A 落入 B 之宮位、A 飛化入 B 盤與五行生剋，說明 A 對 B 的實質影響與扮演角色（55~95字）。',
+        },
+        bImpactOnA: {
+          type: Type.STRING,
+          description: '依據 B 落入 A 之宮位、B 飛化入 A 盤與五行生剋，說明 B 對 A 的實質影響與扮演角色（55~95字）。',
+        },
+        currentYearRhythm: {
+          type: Type.STRING,
+          description: '對照目標年份兩人的紫微流年與塔羅流年牌，說明今年雙方互動的攻守節奏與注意事項（65~110字）。',
+        },
+      },
+      required: ['aImpactOnB', 'bImpactOnA', 'currentYearRhythm'],
+    },
+    practicalAdvice: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          focus: {
+            type: Type.STRING,
+            description: '建議主題（6~12字，須緊扣所選關係情境）。',
+          },
+          action: {
+            type: Type.STRING,
+            description: '具體可執行的相處守則、分工方式或界線約定（55~90字）。',
+          },
+        },
+        required: ['focus', 'action'],
+      },
+      description: '固定產出 3 條針對所選關係情境的實務相處守則。',
+    },
+  },
+  required: [
+    'relationshipPortrait',
+    'synergyHighlights',
+    'frictionPoints',
+    'roleAndDynamics',
+    'practicalAdvice',
+  ],
+};
+
 const SYSTEM_INSTRUCTION = `你是一位精通東方傳統命理（勸學齋紫微斗數規則、主流子平八字）與西方原型心理學（Mary K. Greer 生日塔羅密碼）的資深商用命理顧問。
 請嚴格遵守以下準則：
 1. 絕對以輸入 JSON 中已算好的「紫微斗數、子平八字、生日塔羅密碼」數據為唯一依據，嚴禁自行重新推算農曆、干支、四化或塔羅數字。
@@ -727,6 +840,71 @@ ${JSON.stringify(chartSummary, null, 2)}`;
       res.status(502).json({
         code: 'EMPTY_RESPONSE',
         error: '跨體系合參分析回應為空，請重新嘗試。',
+      });
+      return;
+    }
+
+    const parsed = parseModelJson(text);
+    res.json({ analysis: parsed });
+  } catch (err) {
+    const info = classifyGeminiError(err);
+    res
+      .status(info.status)
+      .json({ code: info.code, error: info.message, reason: info.reason });
+  }
+});
+
+app.post('/api/reading/synastry', async (req, res) => {
+  const synastryPayload = req.body?.synastryPayload;
+  if (
+    !synastryPayload ||
+    typeof synastryPayload !== 'object' ||
+    !synastryPayload.clientA ||
+    !synastryPayload.clientB ||
+    !synastryPayload.bazi ||
+    !synastryPayload.ziwei ||
+    !synastryPayload.tarot
+  ) {
+    res.status(400).json({
+      code: 'INVALID_INPUT',
+      error: '缺少完整的雙人合盤結構化運算資料。',
+    });
+    return;
+  }
+
+  const ai = getGeminiClient();
+  if (!ai) {
+    res.status(503).json({
+      code: 'MISSING_API_KEY',
+      error:
+        '尚未偵測到有效的 GEMINI_API_KEY，因此無法啟動 AI 合盤深度解讀。前端三系統確定性合盤排盤結果皆可正常瀏覽。',
+    });
+    return;
+  }
+
+  try {
+    const prompt = `請依據以下已精密計算完成的「雙人三系統合盤結構化 JSON 數據」（包含勸學齋紫微斗數落宮與命干飛星四化、子平八字日主日支沖合與五行互補貴人、以及 Mary K. Greer 生日塔羅合盤原型與陰影鏡像），針對指定的關係情境，撰寫一份高水準、客觀且具實務指導價值的深度合盤分析報告。
+
+核心要求：
+1. 所有論斷必須 100% 引用 JSON 中真實出現的干支、五行計數、宮位、四化飛星與塔羅牌名，嚴禁憑空編造或重算排盤。
+2. 緊扣 relationLabel 所指明的關係情境（例如感情伴侶著重情感需求與生活默契；事業合夥著重權責分工與財務節奏；親子家人著重界線與支持；摯友知己著重價值共鳴與互動節律）。
+3. 兼顧「看見彼此的真實互補（默契亮點）」與「誠實點出結構性張力（磨合盲點與具體解法）」，語氣溫潤清明、不宿命論斷。
+
+雙人合盤結構化 JSON：
+${JSON.stringify(synastryPayload, null, 2)}`;
+
+    const response = await generateWithFallback(ai, {
+      contents: prompt,
+      systemInstruction: SYSTEM_INSTRUCTION,
+      responseMimeType: 'application/json',
+      responseSchema: SYNASTRY_RESPONSE_SCHEMA,
+    });
+
+    const text = (response.text ?? '').trim();
+    if (!text) {
+      res.status(502).json({
+        code: 'EMPTY_RESPONSE',
+        error: 'AI 合盤深度解讀回應為空，請重新嘗試。',
       });
       return;
     }
